@@ -121,6 +121,30 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     self.assertFalse(self.safety.get_controls_allowed_lateral())
     self._set_safety_hooks()
 
+  def test_the_plan_end_to_end_sequence(self):
+    """The whole feature in one sequence: main switch on permits steering and nothing else.
+
+    Steering goes through, acceleration stays blocked (which is the split that keeps the car's own
+    ACC in charge of speed), a brake press leaves steering alone, and the main switch off takes it
+    all back.
+    """
+    self.safety.set_heartbeat_engaged(True)
+    self.assertTrue(self._rx(self._acc_main_msg(True)))
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    self.assertTrue(self._tx(self._steer_tx_msg()))
+    self.assertFalse(self._tx(self._accel_tx_msg()))
+
+    self._rx(self._user_brake_msg(1))
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+    self.assertTrue(self._tx(self._steer_tx_msg()))
+
+    self._rx(self._acc_main_msg(False))
+    self.assertFalse(self.safety.get_controls_allowed_lateral())
+    self.assertFalse(self._tx(self._steer_tx_msg()))
+    self.assertFalse(self.safety.get_controls_allowed())
+
   def test_lateral_engage_allows_steering_only(self):
     """Steering is permitted while the permission stands; nothing longitudinal is"""
     self._arm_lateral()
