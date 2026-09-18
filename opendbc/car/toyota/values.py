@@ -56,6 +56,7 @@ class ToyotaSafetyFlags(IntFlag):
   STOCK_LONGITUDINAL = (2 << 8)
   LTA = (4 << 8)
   SECOC = (8 << 8)
+  LATERAL_ENGAGE = (16 << 8)  # moonpilot seam, see AGENTS.md
 
 
 class ToyotaFlags(IntFlag):

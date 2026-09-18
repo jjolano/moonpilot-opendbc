@@ -9,6 +9,7 @@ from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
+from opendbc.safety.tests.lateral_engage_common import LateralEngageSafetyTest  # moonpilot
 
 TOYOTA_COMMON_TX_MSGS = [[0x2E4, 0], [0x191, 0], [0x412, 0], [0x343, 0], [0x1D2, 0]]  # LKAS + LTA + ACC & PCM cancel cmds
 TOYOTA_SECOC_TX_MSGS = [[0x131, 0], [0x183, 0]] + TOYOTA_COMMON_TX_MSGS
@@ -411,6 +412,76 @@ class TestToyotaSecOcSafety(TestToyotaSecOcSafetyBase):
         should_tx = np.isclose(accel, self.INACTIVE_ACCEL, atol=0.0001)
         self.assertEqual(should_tx, self._tx(self._accel_msg_343(accel)))
         self.assertEqual(should_tx, self._tx(self._accel_msg_343(accel, cancel_req=1)))
+
+
+# moonpilot: lateral engagement. Stock ACC only (STOCK_LONGITUDINAL is set whenever openpilot is
+# not controlling longitudinal), which is where the feature lives. One class per rx-check branch
+# in toyota_init, so each of the fork's four new rx-check arrays is exercised and covered.
+class TestToyotaLateralEngageBase(TestToyotaStockLongitudinalBase):
+  def _steer_tx_msg(self):
+    """A steering message that is only legal while steering is permitted"""
+    self.safety.set_torque_meas(100, 100)
+    self.safety.set_desired_torque_last(100)
+    self.safety.set_rt_torque_last(100)
+    return self._torque_cmd_msg(100, steer_req=1)
+
+  def _accel_tx_msg(self):
+    return self._accel_msg(-1.0)
+
+  def _set_lat_engage_hooks(self, base_flags):
+    self.safety.set_safety_hooks(CarParams.SafetyModel.toyota, self.EPS_SCALE | int(base_flags | ToyotaSafetyFlags.LATERAL_ENGAGE))
+    self.safety.init_tests()
+
+
+class TestToyotaLateralEngageTorque(LateralEngageSafetyTest, TestToyotaLateralEngageBase):
+  BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL
+
+  def setUp(self):
+    self.packer = CANPackerSafety("toyota_nodsu_pt_generated")
+    self.safety = libsafety_py.libsafety
+    self._set_lat_engage_hooks(self.BASE_FLAGS)
+
+
+class TestToyotaLateralEngageAngle(TestToyotaLateralEngageTorque, TestToyotaSafetyAngle):
+  BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL | ToyotaSafetyFlags.LTA
+
+  def setUp(self):
+    self.packer = CANPackerSafety("toyota_nodsu_pt_generated")
+    self.safety = libsafety_py.libsafety
+    self._set_lat_engage_hooks(self.BASE_FLAGS)
+
+  def _steer_tx_msg(self):
+    self._reset_angle_measurement(0)
+    self._set_prev_desired_angle(0)
+    return self._lta_msg(1, 1, 0, 100)
+
+
+class TestToyotaLateralEngageAltBrake(TestToyotaAltBrakeSafety, TestToyotaLateralEngageBase, LateralEngageSafetyTest):
+  BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL | ToyotaSafetyFlags.ALT_BRAKE
+  TX_MSGS = TOYOTA_COMMON_TX_MSGS
+  RELAY_MALFUNCTION_ADDRS = {0: (0x2E4, 0x191, 0x412)}
+  FWD_BLACKLISTED_ADDRS = {2: [0x2E4, 0x412, 0x191]}
+
+  def setUp(self):
+    self.packer = CANPackerSafety("toyota_new_mc_pt_generated")
+    self.safety = libsafety_py.libsafety
+    self._set_lat_engage_hooks(self.BASE_FLAGS)
+
+
+class TestToyotaLateralEngageSecOc(TestToyotaSecOcSafetyBase, TestToyotaLateralEngageBase, LateralEngageSafetyTest):
+  BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL | ToyotaSafetyFlags.SECOC
+  TX_MSGS = TOYOTA_SECOC_TX_MSGS
+  RELAY_MALFUNCTION_ADDRS = {0: (0x2E4, 0x191, 0x412, 0x131)}
+  FWD_BLACKLISTED_ADDRS = {2: [0x2E4, 0x191, 0x412, 0x131]}
+
+  def setUp(self):
+    self.packer = CANPackerSafety("toyota_secoc_pt_generated")
+    self.safety = libsafety_py.libsafety
+    self._set_lat_engage_hooks(self.BASE_FLAGS)
+
+  # SecOC cars take accel on ACC_CONTROL_2
+  def _accel_tx_msg(self):
+    return self._accel_msg_183(-1.0)
 
 
 if __name__ == "__main__":

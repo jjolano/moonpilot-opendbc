@@ -331,6 +331,7 @@ void safety_tick(const safety_config *cfg) {
       cfg->rx_checks[i].status.lagging = lagging;
       if (lagging) {
         controls_allowed = false;
+        lateral_engage_exit();  // moonpilot
       }
 
       // enforce minimum frequency for safety-relevant messages
@@ -338,6 +339,7 @@ void safety_tick(const safety_config *cfg) {
       if (lagging || frequency_invalid || !is_msg_valid(cfg->rx_checks, i)) {
         rx_checks_invalid = true;
         controls_allowed = false;
+        lateral_engage_exit();  // moonpilot
       }
     }
   }
@@ -369,6 +371,9 @@ static void generic_rx_checks(void) {
     controls_allowed = false;
   }
   steering_disengage_prev = steering_disengage;
+
+  // moonpilot: the lateral-only permission, after the brand hook has updated acc_main_on
+  lateral_engage_update(acc_main_on, heartbeat_engaged, steering_disengage);
 }
 
 static void stock_ecu_check(bool stock_ecu_detected) {
@@ -440,6 +445,7 @@ int set_safety_hooks(uint16_t mode, uint16_t param) {
   cruise_engaged_prev = false;
   vehicle_moving = false;
   acc_main_on = false;
+  lateral_engage_init();  // moonpilot: before current_hooks->init, which enables the permission
   cruise_button_prev = 0;
   desired_torque_last = 0;
   rt_torque_last = 0;

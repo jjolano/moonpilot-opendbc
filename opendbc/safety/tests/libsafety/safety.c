@@ -102,6 +102,26 @@ bool get_acc_main_on(void){
   return acc_main_on;
 }
 
+void set_acc_main_on(bool c){
+  acc_main_on = c;
+}
+
+void set_heartbeat_engaged(bool c){
+  heartbeat_engaged = c;
+}
+
+void set_steering_disengage(bool c){
+  steering_disengage = c;
+}
+
+bool get_controls_allowed_lateral(void){
+  return controls_allowed_lateral;
+}
+
+void set_controls_allowed_lateral(bool c){
+  controls_allowed_lateral = c;
+}
+
 float get_vehicle_speed_min(void){
   return vehicle_speed.min / VEHICLE_SPEED_FACTOR;
 }

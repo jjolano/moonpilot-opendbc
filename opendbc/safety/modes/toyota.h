@@ -56,6 +56,12 @@
   {.msg = {{0x116, 0, 8, 42U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},  \
   {.msg = {{0x101, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},  \
 
+// moonpilot: PCM_CRUISE_2 carries MAIN_ON, the cruise main switch the lateral engagement keys on.
+// Checksum and counter are ignored on purpose: a mismatch here would clear controls_allowed for
+// every message, which is a worse failure than trusting a switch bit.
+#define TOYOTA_LATERAL_ENGAGE_RX_CHECK                                                                                                     \
+  {.msg = {{0x1D3, 0, 8, 33U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},  \
+
 static bool toyota_secoc = false;
 static bool toyota_alt_brake = false;
 static bool toyota_stock_longitudinal = false;
@@ -153,6 +159,11 @@ static void toyota_rx_hook(const CANPacket_t *msg) {
       if (toyota_alt_brake && (msg->addr == 0x224U)) {
         brake_pressed = GET_BIT(msg, 5U);  // BRAKE_MODULE.BRAKE_PRESSED (toyota_new_mc_pt_generated.dbc)
       }
+    }
+
+    // moonpilot: the cruise main switch, which the lateral engagement keys on
+    if (msg->addr == 0x1D3U) {
+      acc_main_on = GET_BIT(msg, 15U);  // PCM_CRUISE_2.MAIN_ON
     }
 
     // sample speed
@@ -376,6 +387,7 @@ static safety_config toyota_init(uint16_t param) {
   const uint32_t TOYOTA_PARAM_ALT_BRAKE = 1UL << TOYOTA_PARAM_OFFSET;
   const uint32_t TOYOTA_PARAM_STOCK_LONGITUDINAL = 2UL << TOYOTA_PARAM_OFFSET;
   const uint32_t TOYOTA_PARAM_LTA = 4UL << TOYOTA_PARAM_OFFSET;
+  const uint32_t TOYOTA_PARAM_LATERAL_ENGAGE = 16UL << TOYOTA_PARAM_OFFSET;  // moonpilot
 
 #ifdef ALLOW_DEBUG
   const uint32_t TOYOTA_PARAM_SECOC = 8UL << TOYOTA_PARAM_OFFSET;
@@ -385,6 +397,10 @@ static safety_config toyota_init(uint16_t param) {
   toyota_alt_brake = GET_FLAG(param, TOYOTA_PARAM_ALT_BRAKE);
   toyota_stock_longitudinal = GET_FLAG(param, TOYOTA_PARAM_STOCK_LONGITUDINAL);
   toyota_lta = GET_FLAG(param, TOYOTA_PARAM_LTA);
+  // moonpilot: the enable rides the safety param, not alternative_experience, because init has to
+  // see it to pick the rx-check set below. A local: the permission itself lives in lateral_engage.h.
+  const bool toyota_lateral_engage = GET_FLAG(param, TOYOTA_PARAM_LATERAL_ENGAGE);
+  lateral_engage_set_enabled(toyota_lateral_engage);
   toyota_dbc_eps_torque_factor = param & TOYOTA_EPS_FACTOR;
 
   safety_config ret;
@@ -406,15 +422,32 @@ static safety_config toyota_init(uint16_t param) {
     static RxCheck toyota_secoc_rx_checks[] = {
       TOYOTA_SECOC_RX_CHECKS
     };
+    // moonpilot: a lateral-engagement variant per branch, so a stock config keeps its own array
+    static RxCheck toyota_secoc_lat_engage_rx_checks[] = {
+      TOYOTA_SECOC_RX_CHECKS
+      TOYOTA_LATERAL_ENGAGE_RX_CHECK
+    };
 
-    SET_RX_CHECKS(toyota_secoc_rx_checks, ret);
+    if (toyota_lateral_engage) {
+      SET_RX_CHECKS(toyota_secoc_lat_engage_rx_checks, ret);
+    } else {
+      SET_RX_CHECKS(toyota_secoc_rx_checks, ret);
+    }
   } else if (toyota_lta) {
     // Check the quality flag for angle measurement when using LTA, since it's not set on TSS-P cars
     static RxCheck toyota_lta_rx_checks[] = {
       TOYOTA_RX_CHECKS(true)
     };
+    static RxCheck toyota_lta_lat_engage_rx_checks[] = {
+      TOYOTA_RX_CHECKS(true)
+      TOYOTA_LATERAL_ENGAGE_RX_CHECK
+    };
 
-    SET_RX_CHECKS(toyota_lta_rx_checks, ret);
+    if (toyota_lateral_engage) {
+      SET_RX_CHECKS(toyota_lta_lat_engage_rx_checks, ret);
+    } else {
+      SET_RX_CHECKS(toyota_lta_rx_checks, ret);
+    }
   } else {
     static RxCheck toyota_lka_rx_checks[] = {
       TOYOTA_RX_CHECKS(false)
@@ -422,11 +455,27 @@ static safety_config toyota_init(uint16_t param) {
     static RxCheck toyota_lka_alt_brake_rx_checks[] = {
       TOYOTA_ALT_BRAKE_RX_CHECKS(false)
     };
+    static RxCheck toyota_lka_lat_engage_rx_checks[] = {
+      TOYOTA_RX_CHECKS(false)
+      TOYOTA_LATERAL_ENGAGE_RX_CHECK
+    };
+    static RxCheck toyota_lka_alt_brake_lat_engage_rx_checks[] = {
+      TOYOTA_ALT_BRAKE_RX_CHECKS(false)
+      TOYOTA_LATERAL_ENGAGE_RX_CHECK
+    };
 
     if (!toyota_alt_brake) {
-      SET_RX_CHECKS(toyota_lka_rx_checks, ret);
+      if (toyota_lateral_engage) {
+        SET_RX_CHECKS(toyota_lka_lat_engage_rx_checks, ret);
+      } else {
+        SET_RX_CHECKS(toyota_lka_rx_checks, ret);
+      }
     } else {
-      SET_RX_CHECKS(toyota_lka_alt_brake_rx_checks, ret);
+      if (toyota_lateral_engage) {
+        SET_RX_CHECKS(toyota_lka_alt_brake_lat_engage_rx_checks, ret);
+      } else {
+        SET_RX_CHECKS(toyota_lka_alt_brake_rx_checks, ret);
+      }
     }
   }
 
