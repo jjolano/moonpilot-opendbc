@@ -9,7 +9,7 @@ from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
-from opendbc.safety.tests.lateral_engage_common import LateralEngageSafetyTest  # moonpilot
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name — see AGENTS.md
 
 TOYOTA_COMMON_TX_MSGS = [[0x2E4, 0], [0x191, 0], [0x412, 0], [0x343, 0], [0x1D2, 0]]  # LKAS + LTA + ACC & PCM cancel cmds
 TOYOTA_SECOC_TX_MSGS = [[0x131, 0], [0x183, 0]] + TOYOTA_COMMON_TX_MSGS
@@ -433,7 +433,7 @@ class TestToyotaLateralEngageBase(TestToyotaStockLongitudinalBase):
     self.safety.init_tests()
 
 
-class TestToyotaLateralEngageTorque(LateralEngageSafetyTest, TestToyotaLateralEngageBase):
+class TestToyotaLateralEngageTorque(lateral_engage_common.LateralEngageSafetyTest, TestToyotaLateralEngageBase):
   BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL
 
   def setUp(self):
@@ -456,7 +456,7 @@ class TestToyotaLateralEngageAngle(TestToyotaLateralEngageTorque, TestToyotaSafe
     return self._lta_msg(1, 1, 0, 100)
 
 
-class TestToyotaLateralEngageAltBrake(TestToyotaAltBrakeSafety, TestToyotaLateralEngageBase, LateralEngageSafetyTest):
+class TestToyotaLateralEngageAltBrake(TestToyotaAltBrakeSafety, TestToyotaLateralEngageBase, lateral_engage_common.LateralEngageSafetyTest):
   BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL | ToyotaSafetyFlags.ALT_BRAKE
   TX_MSGS = TOYOTA_COMMON_TX_MSGS
   RELAY_MALFUNCTION_ADDRS = {0: (0x2E4, 0x191, 0x412)}
@@ -468,7 +468,7 @@ class TestToyotaLateralEngageAltBrake(TestToyotaAltBrakeSafety, TestToyotaLatera
     self._set_lat_engage_hooks(self.BASE_FLAGS)
 
 
-class TestToyotaLateralEngageSecOc(TestToyotaSecOcSafetyBase, TestToyotaLateralEngageBase, LateralEngageSafetyTest):
+class TestToyotaLateralEngageSecOc(TestToyotaSecOcSafetyBase, TestToyotaLateralEngageBase, lateral_engage_common.LateralEngageSafetyTest):
   BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL | ToyotaSafetyFlags.SECOC
   TX_MSGS = TOYOTA_SECOC_TX_MSGS
   RELAY_MALFUNCTION_ADDRS = {0: (0x2E4, 0x191, 0x412, 0x131)}

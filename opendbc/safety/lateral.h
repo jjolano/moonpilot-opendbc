@@ -1,6 +1,5 @@
 #include "opendbc/safety/declarations.h"
-#include "opendbc/safety/moonpilot/lateral_engage.h"  // moonpilot: controls_allowed_lateral
-
+#include "opendbc/safety/moonpilot/lateral_engage.h"  // moonpilot: controls_allowed_lateral; takes upstream's blank line so mutation.py's line-keyed mutants stay put. See AGENTS.md
 // ISO 11270
 static const float ISO_LATERAL_ACCEL = 3.0;  // m/s^2
 
