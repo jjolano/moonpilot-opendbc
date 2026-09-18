@@ -88,7 +88,11 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
   def test_lateral_engage_disarms_on_steering_disengage(self):
-    """A steering override by the driver wins over the permission, and only the next edge re-arms"""
+    """A steering override wins over the permission, and only the next edge re-arms.
+
+    `steering_disengage` is upstream's, and only Tesla's rx hook sets it, so no Toyota can reach
+    this state on the road — the harness injects it to hold the rule itself.
+    """
     self._arm_lateral()
 
     self.safety.lateral_engage_update(True, True, True)

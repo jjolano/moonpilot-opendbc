@@ -14,6 +14,12 @@
 // keeping steering through a brake tap is the feature. What drops it is the
 // cruise main switch, a steering override, openpilot disengaging, and the
 // lag/validity exits in safety_tick.
+//
+// The steering-override term below is upstream's `steering_disengage`, which
+// only Tesla's rx hook ever sets (opendbc/safety/modes/tesla.h): on the fork's
+// one supported brand that branch is inert by construction, and a driver's
+// torque is handled the way upstream handles it — the car blends it, and
+// openpilot overrides rather than disengaging.
 
 bool controls_allowed_lateral = false;
 
@@ -50,7 +56,8 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
     controls_allowed_lateral = false;
   }
 
-  // The driver turning the wheel always wins, whatever armed it.
+  // A steering override always wins, whatever armed it. Tesla-only signal, so
+  // on Toyota this branch does not fire — see the note at the top of this file.
   if (steering_override && !lateral_engage_steering_override_prev) {
     controls_allowed_lateral = false;
   }
