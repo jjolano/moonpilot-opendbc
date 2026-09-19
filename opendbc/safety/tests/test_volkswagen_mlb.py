@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import unittest
+from opendbc.car.volkswagen.values import VolkswagenSafetyFlags
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: lateral engagement coverage
 from opendbc.safety.tests.common import CANPackerSafety
 
 MSG_LS_01 = 0x10B       # TX by OP, ACC control buttons for cancel/resume
@@ -130,6 +132,41 @@ class TestVolkswagenMlbStockSafety(TestVolkswagenMlbSafetyBase):
     self.safety.set_controls_allowed(1)
     self._rx(self._ls_01_msg(cancel=True, bus=0))
     self.assertFalse(self.safety.get_controls_allowed(), "controls allowed after cancel")
+
+
+# moonpilot: lateral engagement, stock ACC only -- the configuration where the car's own ACC holds
+# speed. MLB is an ARM_HOST brand: its rx hook decodes no cruise main switch at all, so openpilot's
+# own engaged heartbeat is the whole arm.
+class TestVolkswagenMlbLateralEngageBase(TestVolkswagenMlbStockSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    param = int(VolkswagenSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.volkswagenMlb, param)
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """HCA_01 torque, seeded so the rate and driver-torque checks pass: the permit is the only
+    variable left"""
+    self.safety.set_torque_meas(100, 100)
+    self.safety.set_desired_torque_last(100)
+    self.safety.set_rt_torque_last(100)
+    return self._torque_cmd_msg(100, steer_req=1)
+
+  def _accel_tx_msg(self):
+    """0x10D ACC_05, the car's own ACC acceleration request. MLB has no openpilot longitudinal
+    message at all -- its tx list is steering, HUD and ACC buttons -- so what blocks acceleration
+    here is upstream's tx list, not the permission."""
+    return common.make_msg(0, 0x10D, 8)
+
+
+class TestVolkswagenMlbLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestVolkswagenMlbLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

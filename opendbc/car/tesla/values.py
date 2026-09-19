@@ -126,6 +126,7 @@ class CarControllerParams:
 class TeslaSafetyFlags(IntFlag):
   LONG_CONTROL = 1
   FSD_14 = 2
+  LATERAL_ENGAGE = 4  # moonpilot seam, see AGENTS.md
 
 
 class TeslaFlags(IntFlag):

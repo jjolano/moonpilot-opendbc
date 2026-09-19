@@ -3,10 +3,11 @@
 extern const uint16_t FLAG_VOLKSWAGEN_LONG_CONTROL;
 const uint16_t FLAG_VOLKSWAGEN_LONG_CONTROL = 1;
 
-// moonpilot seam, see AGENTS.md: the lateral-only permission. Shared by the platforms that can
-// carry it -- MQB and MEB, whose rx hooks already decode the cruise main switch -- and read in
-// each of their inits. PQ is deliberately not among them: its acc_main_on is only set under
-// openpilot longitudinal control, which is the one configuration this feature does not apply to.
+// moonpilot seam, see AGENTS.md: the lateral-only permission. Shared by every VW platform -- a car
+// runs one VW mode at a time -- with the arm differing per platform: MQB and MEB arm on the cruise
+// main switch their rx hooks decode (ARM_SWITCH), while PQ and MLB have none to arm on (PQ only
+// populates acc_main_on under openpilot longitudinal control, which is the one configuration this
+// feature is not for, and MLB never populates it) and arm on the host's heartbeat (ARM_HOST).
 extern const uint16_t FLAG_VOLKSWAGEN_LATERAL_ENGAGE;
 const uint16_t FLAG_VOLKSWAGEN_LATERAL_ENGAGE = 4;
 

@@ -4,6 +4,7 @@ import random
 import unittest
 
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name — see AGENTS.md
 from opendbc.car.lateral import MAX_LATERAL_ACCEL, MAX_LATERAL_JERK
 from opendbc.car.ford.values import FordSafetyFlags
 from opendbc.car.structs import CarParams
@@ -570,6 +571,40 @@ class TestFordCANFDLongitudinalSafety(TestFordLongitudinalSafetyBase):
     self.safety = libsafety_py.libsafety
     self.safety.set_safety_hooks(CarParams.SafetyModel.ford, FordSafetyFlags.LONG_CONTROL | FordSafetyFlags.CANFD)
     self.safety.init_tests()
+
+
+# moonpilot: lateral engagement, CAN FD stock longitudinal — the configuration where Ford's own ACC
+# holds speed. `ford_init` reads the enable once, before the CANFD/stock split, so one class covers
+# it. Host-armed: the mode never sets `acc_main_on` (EngBrakeData carries cruise engaged, which is
+# not the main switch), so the arm is openpilot's own engaged heartbeat — see lateral_engage_common.
+class TestFordLateralEngageBase(TestFordCANFDStockSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(FordSafetyFlags.CANFD) | (int(FordSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+    self.safety.set_safety_hooks(CarParams.SafetyModel.ford, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """A steering request that is only legal while steering is permitted. LatCtl_D2_Rq is set with
+    zero curvature, so the layered curvature checks leave the permit as the only variable."""
+    self._set_prev_desired_angle(0)
+    return self._lat_ctl_msg(True, 0, 0, 0, 0)
+
+  def _accel_tx_msg(self):
+    """ACCDATA: stock-longitudinal Ford cannot send it at all, and the permission must not change
+    that"""
+    return self.packer.make_can_msg_safety("ACCDATA", 0, {"AccPrpl_A_Rq": 2.0})
+
+
+class TestFordLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestFordLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

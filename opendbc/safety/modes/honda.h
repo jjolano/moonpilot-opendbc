@@ -306,7 +306,7 @@ static safety_config honda_nidec_init(uint16_t param) {
   // Honda needs no rx check for it: SCM_FEEDBACK/SCM_BUTTONS, which carry the cruise main switch,
   // are already checked above at their own rates.
   const uint16_t HONDA_PARAM_LATERAL_ENGAGE = 32;
-  lateral_engage_set_enabled(GET_FLAG(param, HONDA_PARAM_LATERAL_ENGAGE));
+  lateral_engage_set_enabled(GET_FLAG(param, HONDA_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_SWITCH);
 
   honda_hw = HONDA_NIDEC;
   honda_brake = 0;
@@ -366,7 +366,7 @@ static safety_config honda_bosch_init(uint16_t param) {
   const uint16_t HONDA_PARAM_BOSCH_CANFD = 16;
   // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit
   const uint16_t HONDA_PARAM_LATERAL_ENGAGE = 32;
-  lateral_engage_set_enabled(GET_FLAG(param, HONDA_PARAM_LATERAL_ENGAGE));
+  lateral_engage_set_enabled(GET_FLAG(param, HONDA_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_SWITCH);
 
   // Bosch radarless has the powertrain bus on bus 0
   static RxCheck honda_bosch_pt0_rx_checks[] = {

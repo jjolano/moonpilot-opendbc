@@ -145,6 +145,12 @@ static bool chrysler_tx_hook(const CANPacket_t *msg) {
 static safety_config chrysler_init(uint16_t param) {
   const uint32_t CHRYSLER_PARAM_RAM_DT = 1U;  // set for Ram DT platform
 
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit.
+  // Host-armed: this mode never populates `acc_main_on` (DAS_3 carries cruise engaged, not the main
+  // switch), so openpilot's own engaged heartbeat is the arm. Read once, for all three platforms.
+  const uint32_t CHRYSLER_PARAM_LATERAL_ENGAGE = 4U;
+  lateral_engage_set_enabled(GET_FLAG(param, CHRYSLER_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   static RxCheck chrysler_ram_dt_rx_checks[] = {
     {.msg = {{CHRYSLER_RAM_DT_EPS_2, 0, 8, 100U, .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{CHRYSLER_RAM_DT_ESP_1, 0, 8, 50U, .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}},

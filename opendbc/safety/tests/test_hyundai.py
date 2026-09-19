@@ -8,6 +8,7 @@ from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
 from opendbc.safety.tests.hyundai_common import HyundaiButtonBase, HyundaiLongitudinalBase
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name -- see AGENTS.md
 
 
 # 4 bit checkusm used in some hyundai messages
@@ -281,6 +282,57 @@ class TestHyundaiSafetyFCEVLong(TestHyundaiLongitudinalSafety, TestHyundaiSafety
     self.safety = libsafety_py.libsafety
     self.safety.set_safety_hooks(CarParams.SafetyModel.hyundai, HyundaiSafetyFlags.FCEV_GAS | HyundaiSafetyFlags.LONG)
     self.safety.init_tests()
+
+
+# moonpilot: lateral engagement. Stock ACC only -- this param carries no LONGITUDINAL flag, which is
+# where the feature lives -- and host-armed: no hyundai init decodes a cruise main switch to require,
+# so openpilot's own engaged heartbeat is the whole arm. One class per init that reads the bit
+# (hyundai.h's hyundai_init and hyundai_legacy_init, hyundai_canfd.h's hyundai_canfd_init).
+class TestHyundaiLateralEngageBase(TestHyundaiSafety):
+  SAFETY_MODEL = CarParams.SafetyModel.hyundai
+
+  def _steer_tx_msg(self):
+    """A steering message that is only legal while steering is permitted"""
+    self._set_prev_torque(100)
+    return self._torque_cmd_msg(100, steer_req=1)
+
+  def _accel_tx_msg(self):
+    """SCC12's acceleration request: the frame that carries acceleration on this brand, and one
+    this config's tx set does not contain at all -- stock longitudinal sends no acceleration, so
+    the permission must not put the address there."""
+    return self.packer.make_can_msg_safety("SCC12", self.SCC_BUS, {"aReqRaw": -1.0, "aReqValue": -1.0})
+
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(HyundaiSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(self.SAFETY_MODEL, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+
+class TestHyundaiLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestHyundaiLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
+
+
+class TestHyundaiLegacyLateralEngageBase(TestHyundaiLateralEngageBase):
+  """hyundai_legacy_init: the same bit read by an init of its own, and the same stock-ACC cars."""
+
+  SAFETY_MODEL = CarParams.SafetyModel.hyundaiLegacy
+
+  def setUp(self):
+    self.packer = CANPackerSafety("hyundai_can_generated")
+    self.safety = libsafety_py.libsafety
+    self._set_lat_engage_hooks()
+
+
+class TestHyundaiLegacyLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestHyundaiLegacyLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
 
 
 if __name__ == "__main__":

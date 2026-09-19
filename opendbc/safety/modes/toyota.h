@@ -400,7 +400,7 @@ static safety_config toyota_init(uint16_t param) {
   // moonpilot: the enable rides the safety param, not alternative_experience, because init has to
   // see it to pick the rx-check set below. A local: the permission itself lives in lateral_engage.h.
   const bool toyota_lateral_engage = GET_FLAG(param, TOYOTA_PARAM_LATERAL_ENGAGE);
-  lateral_engage_set_enabled(toyota_lateral_engage);
+  lateral_engage_set_enabled(toyota_lateral_engage, LATERAL_ENGAGE_ARM_SWITCH);
   toyota_dbc_eps_torque_factor = param & TOYOTA_EPS_FACTOR;
 
   safety_config ret;

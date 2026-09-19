@@ -29,6 +29,7 @@ class CarControllerParams:
 
 class NissanSafetyFlags(IntFlag):
   ALT_EPS_BUS = 1
+  LATERAL_ENGAGE = 2  # moonpilot seam, see AGENTS.md
 
 
 class Footnote(Enum):

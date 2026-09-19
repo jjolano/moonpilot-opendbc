@@ -352,6 +352,14 @@ static safety_config tesla_init(uint16_t param) {
   tesla_longitudinal = GET_FLAG(param, TESLA_FLAG_LONGITUDINAL_CONTROL);
 #endif
 
+  // moonpilot seam, see AGENTS.md: the lateral-only permission. Bit 2 because tesla_init's other
+  // bits are TESLA_FLAG_LONGITUDINAL_CONTROL (bit 0) and TESLA_FLAG_FSD_14 (bit 1). Host-armed, not
+  // switch-armed: the mode decodes no cruise main switch, so openpilot's own engaged heartbeat is
+  // the arm (see moonpilot/lateral_engage.h). Tesla's rx hook is also the fork's only source of
+  // `steering_disengage`, which this layer reads as the override.
+  const uint16_t TESLA_PARAM_LATERAL_ENGAGE = 4;
+  lateral_engage_set_enabled(GET_FLAG(param, TESLA_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   tesla_stock_aeb = false;
   tesla_stock_lkas = false;
   tesla_stock_lkas_prev = false;

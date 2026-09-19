@@ -6,6 +6,7 @@ from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name -- see AGENTS.md
 
 
 class TestNissanSafety(common.CarSafetyTest, common.AngleSteeringSafetyTest):
@@ -112,6 +113,40 @@ class TestNissanLeafSafety(TestNissanSafety):
   # TODO: leaf should use its own safety param
   def test_acc_buttons(self):
     pass
+
+
+# moonpilot: lateral engagement. Stock ACC only -- nissan's mode enters controls on CRUISE_STATE's
+# rising edge and sends the car no longitudinal command -- and host-armed: that message is the ACC
+# state, not the cruise main switch, so openpilot's heartbeat is the arm.
+class TestNissanLateralEngageBase(TestNissanSafety):
+  def _steer_tx_msg(self):
+    """A steering message that is only legal while steering is permitted: the angle command's
+    LKA_ACTIVE bit is the request, and the angle itself stays at the current one."""
+    self._reset_angle_measurement(0)
+    self._set_prev_desired_angle(0)
+    return self._angle_cmd_msg(0, True)
+
+  def _accel_tx_msg(self):
+    """A resume press: the car's own ACC buttons are the only longitudinal command nissan's tx set
+    carries, and upstream allows cancel alone."""
+    return self._acc_button_cmd(res=1)
+
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(NissanSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.nissan, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+
+class TestNissanLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestNissanLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

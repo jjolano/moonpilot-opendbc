@@ -95,6 +95,13 @@ static safety_config subaru_preglobal_init(uint16_t param) {
   const uint16_t SUBARU_PG_PARAM_REVERSED_DRIVER_TORQUE = 4;
 
   subaru_pg_reversed_driver_torque = GET_FLAG(param, SUBARU_PG_PARAM_REVERSED_DRIVER_TORQUE);
+
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit --
+  // the same bit the global subaru mode reads, since the Python mirror is one flag per brand.
+  // Host-armed: this mode never populates `acc_main_on` (CruiseControl carries cruise engaged, not
+  // the main switch), so openpilot's own engaged heartbeat is the arm.
+  const uint16_t SUBARU_PARAM_LATERAL_ENGAGE = 8;
+  lateral_engage_set_enabled(GET_FLAG(param, SUBARU_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
   return BUILD_SAFETY_CFG(subaru_preglobal_rx_checks, SUBARU_PG_TX_MSGS);
 }
 

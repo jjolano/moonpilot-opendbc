@@ -126,8 +126,13 @@ static safety_config nissan_init(uint16_t param) {
 
   // EPS Location. false = V-CAN, true = C-CAN
   const uint16_t NISSAN_PARAM_ALT_EPS_BUS = 1;
+  // moonpilot seam, see AGENTS.md: the lateral-only permission. Bit 2, the lowest bit free: the two
+  // readers of a nissan param are this init and nothing else, and 1 is ALT_EPS_BUS. Host-armed:
+  // the mode decodes CRUISE_STATE 0x30f, the ACC state, and no cruise main switch.
+  const uint16_t NISSAN_PARAM_LATERAL_ENGAGE = 2;
 
   nissan_alt_eps = GET_FLAG(param, NISSAN_PARAM_ALT_EPS_BUS);
+  lateral_engage_set_enabled(GET_FLAG(param, NISSAN_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
   return BUILD_SAFETY_CFG(nissan_rx_checks, NISSAN_TX_MSGS);
 }
 

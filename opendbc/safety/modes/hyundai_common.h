@@ -44,6 +44,17 @@ bool hyundai_alt_limits_2 = false;
 
 static uint8_t hyundai_last_button_interaction;  // button messages since the user pressed an enable button
 
+// moonpilot seam, see AGENTS.md: the lateral-only permission's enable, one bit in the flag space
+// this file defines, which hyundai.h's hyundai_init and hyundai_legacy_init and hyundai_canfd.h's
+// hyundai_canfd_init all read. 1024 is the lowest bit that space leaves free: 1 EV_GAS, 2
+// HYBRID_GAS, 4 LONGITUDINAL (read only under ALLOW_DEBUG), 8 CAMERA_SCC, 16 CANFD_LKA_STEER_MSG,
+// 64 ALT_LIMITS, 256 FCEV_GAS and 512 ALT_LIMITS_2 are read by hyundai_common_init below, and 32
+// CANFD_ALT_BUTTONS and 128 CANFD_LKA_STEER_MSG_ALT by hyundai_canfd_init. Nothing else in the mode
+// reads a hyundai param, so the bit is unshared, and a param without it is byte-identical to
+// upstream's.
+extern const uint16_t HYUNDAI_PARAM_LATERAL_ENGAGE;
+const uint16_t HYUNDAI_PARAM_LATERAL_ENGAGE = 1024;
+
 void hyundai_common_init(uint16_t param) {
   const uint16_t HYUNDAI_PARAM_EV_GAS = 1;
   const uint16_t HYUNDAI_PARAM_HYBRID_GAS = 2;

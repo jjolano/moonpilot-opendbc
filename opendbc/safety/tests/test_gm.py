@@ -6,6 +6,7 @@ from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name — see AGENTS.md
 
 
 class Buttons:
@@ -249,6 +250,42 @@ class TestGmIgnition(unittest.TestCase):
     self.assertTrue(self.safety.get_ignition_can())
     self.safety.ignition_can_hook(self._msg(0))
     self.assertFalse(self.safety.get_ignition_can())
+
+
+# moonpilot: lateral engagement, camera-ACC GM — the configuration where the car's own ACC holds
+# speed and openpilot sends it no longitudinal command at all. `gm_init` reads the enable once,
+# before the HW_CAM/ASCM split, so one class covers both. Host-armed: the mode never sets
+# `acc_main_on` (it decodes cruise engaged from AcceleratorPedal2, which is not the main switch), so
+# the arm is openpilot's own engaged heartbeat — see lateral_engage_common.
+class TestGmLateralEngageBase(TestGmCameraSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(GMSafetyFlags.HW_CAM) | (int(GMSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+    self.safety.set_safety_hooks(CarParams.SafetyModel.gm, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """A steering request that is only legal while steering is permitted. The driver torque sample
+    is seeded at zero so the driver limit is the full max torque leave the permit as the variable."""
+    self.safety.set_torque_driver(0, 0)
+    self._set_prev_torque(100)
+    return self._torque_cmd_msg(100)
+
+  def _accel_tx_msg(self):
+    """ASCMGasRegenCmd: the acceleration command an ASCM GM would send. Camera-ACC GM has no
+    longitudinal command at all, and the permission must not open this one."""
+    return self.packer.make_can_msg_safety("ASCMGasRegenCmd", 0, {"GasRegenCmd": 500})
+
+
+class TestGmLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestGmLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

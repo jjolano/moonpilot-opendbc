@@ -98,7 +98,12 @@ static bool mg_tx_hook(const CANPacket_t *msg) {
 }
 
 static safety_config mg_init(uint16_t param) {
-  SAFETY_UNUSED(param);
+  // moonpilot seam, see AGENTS.md: the lateral-only permission. Bit 1 because this param space is
+  // empty upstream -- mg_init is its only reader and it has always discarded the value -- so the
+  // lowest bit is free by construction and a stock param is still 0. Host-armed: the mode decodes
+  // RADAR_HSC2_FrP00's ACCSysSts_RadarHSC2, the ACC state, and no cruise main switch.
+  const uint16_t MG_PARAM_LATERAL_ENGAGE = 1;
+  lateral_engage_set_enabled(GET_FLAG(param, MG_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
 
   gen_crc_lookup_table_8(0x1DU, mg_crc_lut);
 

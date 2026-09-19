@@ -264,6 +264,11 @@ static safety_config hyundai_canfd_init(uint16_t param) {
 
   hyundai_common_init(param);
 
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, same bit and host arm as
+  // hyundai_init -- CANFD decodes no cruise main switch either (ADAPTIVE_CRUISE_MAIN_BTN is a
+  // button press, SCC_CONTROL's ACCMode a state), and the param space is the shared one.
+  lateral_engage_set_enabled(GET_FLAG(param, HYUNDAI_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   gen_crc_lookup_table_16(0x1021, hyundai_canfd_crc_lut);
   hyundai_canfd_alt_buttons = GET_FLAG(param, HYUNDAI_PARAM_CANFD_ALT_BUTTONS);
   hyundai_canfd_lka_steer_msg_alt = GET_FLAG(param, HYUNDAI_PARAM_CANFD_LKA_STEER_MSG_ALT);

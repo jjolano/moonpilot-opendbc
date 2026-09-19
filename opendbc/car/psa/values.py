@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from enum import IntFlag
 
 from opendbc.car.structs import CarParams
 from opendbc.car import Bus, CarSpecs, DbcDict, PlatformConfig, Platforms
@@ -18,6 +19,10 @@ class CarControllerParams:
     ([0., 5., 25.], [5., 2., .3]),
   )
   STEER_DRIVER_ALLOWANCE = 5  # Driver intervention threshold, 0.5 Nm
+
+
+class PsaSafetyFlags(IntFlag):
+  LATERAL_ENGAGE = 1  # moonpilot seam, see AGENTS.md
 
 
 @dataclass

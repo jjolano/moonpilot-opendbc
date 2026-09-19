@@ -6,6 +6,7 @@ from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name — see AGENTS.md
 
 
 class TestChryslerSafety(common.CarSafetyTest, common.MotorTorqueSteeringSafetyTest):
@@ -119,6 +120,41 @@ class TestChryslerRamHDSafety(TestChryslerSafety):
   def _speed_msg(self, speed):
     values = {"Vehicle_Speed": speed}
     return self.packer.make_can_msg_safety("ESP_8", 0, values)
+
+
+# moonpilot: lateral engagement, Pacifica/Jeep — the default platform, where the car's own ACC holds
+# speed. `chrysler_init` reads the enable once for all three platforms, so one class covers the
+# mode. Host-armed: the mode never sets `acc_main_on` (DAS_3 carries cruise engaged, which is not
+# the main switch), so the arm is openpilot's own engaged heartbeat — see lateral_engage_common.
+class TestChryslerLateralEngageBase(TestChryslerSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    param = int(ChryslerSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.chrysler, param)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """A steering request that is only legal while steering is permitted. Seeded so the rate and
+    measured-torque checks pass, leaving the permit as the only variable."""
+    self.safety.set_torque_meas(3, 3)
+    self._set_prev_torque(3)
+    return self._torque_cmd_msg(3)
+
+  def _accel_tx_msg(self):
+    """ACCEL_RELATED_2FC: the DASM's acceleration message. This mode has no longitudinal command at
+    all — its ACC is the DASM's — and the permission must not open this one."""
+    return self.packer.make_can_msg_safety("ACCEL_RELATED_2FC", 0, {"ACCEL_2FC": 1})
+
+
+class TestChryslerLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestChryslerLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

@@ -42,6 +42,7 @@ class CarControllerParams:
 class FordSafetyFlags(IntFlag):
   LONG_CONTROL = 1
   CANFD = 2
+  LATERAL_ENGAGE = 4  # moonpilot seam, see AGENTS.md
 
 
 class FordFlags(IntFlag):

@@ -63,6 +63,7 @@ class GMSafetyFlags(IntFlag):
   HW_CAM = 1
   HW_CAM_LONG = 2
   EV = 4
+  LATERAL_ENGAGE = 8  # moonpilot seam, see AGENTS.md
 
 
 class Footnote(Enum):

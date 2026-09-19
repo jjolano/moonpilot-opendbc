@@ -94,7 +94,12 @@ static safety_config mazda_init(uint16_t param) {
     {.msg = {{MAZDA_PEDALS,       0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
   };
 
-  SAFETY_UNUSED(param);
+  // moonpilot seam, see AGENTS.md: the lateral-only permission. Bit 1 because this param space is
+  // empty upstream -- mazda_init is its only reader and it has always discarded the value -- so
+  // the lowest bit is free by construction and a stock param is still 0. Host-armed: the mode
+  // decodes CRZ_CTRL's CRZ_ACTIVE, the ACC state, and no cruise main switch.
+  const uint16_t MAZDA_PARAM_LATERAL_ENGAGE = 1;
+  lateral_engage_set_enabled(GET_FLAG(param, MAZDA_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
   return BUILD_SAFETY_CFG(mazda_rx_checks, MAZDA_TX_MSGS);
 }
 

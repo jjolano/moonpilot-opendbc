@@ -36,6 +36,10 @@ class MazdaCarSpecs(CarSpecs):
   tireStiffnessFactor: float = 0.7  # not optimized yet
 
 
+class MazdaSafetyFlags(IntFlag):
+  LATERAL_ENGAGE = 1  # moonpilot seam, see AGENTS.md
+
+
 class MazdaFlags(IntFlag):
   # Static flags
   # Gen 1 hardware: same CAN messages and same camera

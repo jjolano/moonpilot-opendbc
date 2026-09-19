@@ -6,6 +6,7 @@ from opendbc.car.subaru.values import SubaruSafetyFlags
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name — see AGENTS.md
 
 
 class TestSubaruPreglobalSafety(common.CarSafetyTest, common.DriverTorqueSteeringSafetyTest):
@@ -63,6 +64,42 @@ class TestSubaruPreglobalSafety(common.CarSafetyTest, common.DriverTorqueSteerin
 class TestSubaruPreglobalReversedDriverTorqueSafety(TestSubaruPreglobalSafety):
   FLAGS = SubaruSafetyFlags.PREGLOBAL_REVERSED_DRIVER_TORQUE
   DBC = "subaru_outback_2019_generated"
+
+
+# moonpilot: lateral engagement, pre-global. Host-armed: the mode never sets `acc_main_on`
+# (CruiseControl carries cruise engaged, which is not the main switch), so the arm is openpilot's own
+# engaged heartbeat — see lateral_engage_common.
+class TestSubaruPreglobalLateralEngageBase(TestSubaruPreglobalSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(self.FLAGS) | (int(SubaruSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+    self.safety.set_safety_hooks(CarParams.SafetyModel.subaruPreglobal, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """A steering request that is only legal while steering is permitted. The driver torque sample
+    is seeded at zero so the driver limit is the full max torque, leaving the permit as the only
+    variable."""
+    self.safety.set_torque_driver(0, 0)
+    self._set_prev_torque(50)
+    return self._torque_cmd_msg(50)
+
+  def _accel_tx_msg(self):
+    """The car's own throttle message. The one acceleration-adjacent message this mode may send,
+    ES_Distance, carries the car-follow distance alone and upstream gates neither permission on it,
+    so a message the permission *can* open is the only one that can make the claim here."""
+    return self._user_gas_msg(1)
+
+
+class TestSubaruPreglobalLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestSubaruPreglobalLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

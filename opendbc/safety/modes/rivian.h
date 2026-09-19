@@ -158,7 +158,13 @@ static safety_config rivian_init(uint16_t param) {
 
   bool rivian_longitudinal = false;
 
-  SAFETY_UNUSED(param);
+  // moonpilot seam, see AGENTS.md: the lateral-only permission. Bit 1 because rivian_init's only
+  // other bit is FLAG_RIVIAN_LONG_CONTROL, bit 0. Host-armed, not switch-armed: the mode decodes no
+  // cruise main switch, so openpilot's own engaged heartbeat is the arm (see
+  // moonpilot/lateral_engage.h).
+  const uint16_t RIVIAN_PARAM_LATERAL_ENGAGE = 2;
+  lateral_engage_set_enabled(GET_FLAG(param, RIVIAN_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   #ifdef ALLOW_DEBUG
     const int FLAG_RIVIAN_LONG_CONTROL = 1;
     rivian_longitudinal = GET_FLAG(param, FLAG_RIVIAN_LONG_CONTROL);

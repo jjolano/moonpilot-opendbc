@@ -117,7 +117,6 @@ static bool psa_tx_hook(const CANPacket_t *msg) {
 }
 
 static safety_config psa_init(uint16_t param) {
-  SAFETY_UNUSED(param);
   static const CanMsg PSA_TX_MSGS[] = {
     {PSA_LANE_KEEP_ASSIST, PSA_MAIN_BUS, 8, .check_relay = true}, // EPS steering
   };
@@ -130,6 +129,14 @@ static safety_config psa_init(uint16_t param) {
     {.msg = {{PSA_DYN_CMM, PSA_MAIN_BUS, 8, 100U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},      // gas pedal
     {.msg = {{PSA_DAT_BSI, PSA_CAM_BUS, 8, 20U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},        // brake
   };
+
+  // moonpilot seam, see AGENTS.md: the lateral-only permission. Bit 0 because this param space is
+  // empty upstream -- psa_init is its only reader and it has always discarded the value -- so the
+  // lowest bit is free by construction and a stock param is still 0. Host-armed, not switch-armed:
+  // the mode decodes no cruise main switch, so openpilot's own engaged heartbeat is the arm (see
+  // moonpilot/lateral_engage.h).
+  const uint16_t PSA_PARAM_LATERAL_ENGAGE = 1;
+  lateral_engage_set_enabled(GET_FLAG(param, PSA_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
 
   return BUILD_SAFETY_CFG(psa_rx_checks, PSA_TX_MSGS);
 }

@@ -8,6 +8,7 @@ from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
 from functools import partial
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name — see AGENTS.md
 
 
 class SubaruMsg(enum.IntEnum):
@@ -133,6 +134,43 @@ class TestSubaruGen2TorqueSafetyBase(TestSubaruTorqueSafetyBase):
 class TestSubaruGen2TorqueStockLongitudinalSafety(TestSubaruStockLongitudinalSafetyBase, TestSubaruGen2TorqueSafetyBase):
   FLAGS = SubaruSafetyFlags.GEN2
   TX_MSGS = lkas_tx_msgs(SUBARU_ALT_BUS)
+
+
+# moonpilot: lateral engagement, gen 1 with stock longitudinal — the configuration where the car's
+# own ACC holds speed. `subaru_init` reads the enable once, before the gen1/gen2 split, so one class
+# covers both. Host-armed: the mode never sets `acc_main_on` (CruiseControl carries cruise engaged,
+# which is not the main switch), so the arm is openpilot's own engaged heartbeat — see
+# lateral_engage_common.
+class TestSubaruLateralEngageBase(TestSubaruGen1TorqueStockLongitudinalSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(self.FLAGS) | (int(SubaruSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+    self.safety.set_safety_hooks(CarParams.SafetyModel.subaru, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """A steering request that is only legal while steering is permitted. The driver torque sample
+    is seeded at zero so the driver limit is the full max torque, leaving the permit as the only
+    variable."""
+    self.safety.set_torque_driver(0, 0)
+    self._set_prev_torque(50)
+    return self._torque_cmd_msg(50)
+
+  def _accel_tx_msg(self):
+    """ES_Distance as an acceleration request. Stock-ACC Subaru may only send it to cancel, so a
+    cruise throttle request is refused: the permission is lateral-only."""
+    return self._cancel_msg(False, 2000)
+
+
+class TestSubaruGen1LateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestSubaruLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

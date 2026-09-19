@@ -4,6 +4,7 @@ import unittest
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: lateral engagement coverage
 from opendbc.safety.tests.common import CANPackerSafety
 from opendbc.car.rivian.values import RivianSafetyFlags
 from opendbc.car.rivian.riviancan import checksum as _checksum
@@ -140,6 +141,41 @@ class TestRivianLongitudinalSafety(TestRivianSafetyBase):
     self.safety = libsafety_py.libsafety
     self.safety.set_safety_hooks(CarParams.SafetyModel.rivian, RivianSafetyFlags.LONG_CONTROL)
     self.safety.init_tests()
+
+
+# moonpilot: lateral engagement, stock ACC only -- the configuration where the car's own ACC holds
+# speed. Rivian is an ARM_HOST brand: rivian.h decodes no cruise main switch, so openpilot's own
+# engaged heartbeat is the whole arm (see moonpilot/lateral_engage.h).
+class TestRivianLateralEngageBase(TestRivianStockSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    param = int(RivianSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.rivian, param)
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """ACM_lkaHbaCmd, seeded so the rate and driver-torque checks pass: the permit is the only
+    variable left"""
+    self.safety.set_torque_meas(100, 100)
+    self.safety.set_desired_torque_last(100)
+    self.safety.set_rt_torque_last(100)
+    return self._torque_cmd_msg(100, steer_req=1)
+
+  def _accel_tx_msg(self):
+    """ACM_longitudinalRequest, which only the openpilot-longitudinal config may send: stock
+    Rivian's tx list carries no acceleration message at all, so what blocks acceleration here is
+    upstream's tx list, not the permission."""
+    return self._accel_msg(-1.0)
+
+
+class TestRivianLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestRivianLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 class TestRivianIgnition(unittest.TestCase):

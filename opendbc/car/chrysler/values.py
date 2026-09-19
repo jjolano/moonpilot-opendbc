@@ -12,6 +12,7 @@ Ecu = CarParams.Ecu
 class ChryslerSafetyFlags(IntFlag):
   RAM_DT = 1
   RAM_HD = 2
+  LATERAL_ENGAGE = 4  # moonpilot seam, see AGENTS.md
 
 
 class ChryslerFlags(IntFlag):

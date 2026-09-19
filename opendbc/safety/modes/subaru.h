@@ -167,6 +167,12 @@ static safety_config subaru_init(uint16_t param) {
 
   subaru_gen2 = GET_FLAG(param, SUBARU_PARAM_GEN2);
 
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit.
+  // Host-armed: this mode never populates `acc_main_on` (CruiseControl carries cruise engaged, not
+  // the main switch), so openpilot's own engaged heartbeat is the arm. Read once, for both gens.
+  const uint16_t SUBARU_PARAM_LATERAL_ENGAGE = 8;
+  lateral_engage_set_enabled(GET_FLAG(param, SUBARU_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   // TODO: re-enable once more work is done on the limits
   // revert this in the PR that re-enables Subaru longitudinal: https://github.com/commaai/opendbc/pull/3689
 

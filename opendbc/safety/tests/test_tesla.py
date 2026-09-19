@@ -12,6 +12,7 @@ from opendbc.car.vehicle_model import VehicleModel
 from opendbc.can import CANDefine
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: lateral engagement coverage
 from opendbc.safety.tests.common import CANPackerSafety, MAX_SPEED_DELTA, MAX_WRONG_COUNTERS, away_round, round_speed
 
 MSG_DAS_steeringControl = 0x488
@@ -454,6 +455,53 @@ class TestTeslaLongitudinalSafety(TestTeslaSafetyBase):
 
 class TestTeslaFSD14LongitudinalSafety(TestTeslaLongitudinalSafety):
   SAFETY_PARAM = TeslaSafetyFlags.LONG_CONTROL | TeslaSafetyFlags.FSD_14
+
+
+# moonpilot: lateral engagement, stock ACC only -- the configuration where the car's own ACC holds
+# speed. Tesla is an ARM_HOST brand: tesla.h decodes no cruise main switch, so openpilot's own
+# engaged heartbeat is the whole arm. It is also the fork's only ARM_HOST brand whose rx hook
+# raises upstream's `steering_disengage`, so this class drives the real override path
+# (EPAS3S_sysStatus with hands on level 3, see tesla_rx_hook) and not just the injected signal the
+# mixin uses on every other brand.
+class TestTeslaLateralEngageBase(TestTeslaStockSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    param = int(TeslaSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.tesla, param)
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """DAS_steeringControl in angle control: legal only while steering is permitted"""
+    return self._angle_cmd_msg(0, True)
+
+  def _accel_tx_msg(self):
+    """DAS_control with a nonzero accel limit. It is in the stock tx list, but stock Tesla may only
+    cancel with it -- acceleration needs tesla_longitudinal, which the lateral permission never
+    touches."""
+    return self._long_control_msg(10, acc_state=self.acc_states["ACC_ON"], accel_limits=(-1.0, -1.0))
+
+
+class TestTeslaLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestTeslaLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
+
+  def test_lateral_engage_disarms_on_a_decoded_steering_override(self):
+    """The override exit, driven by the rx hook rather than injected: a hands-on-3 frame raises
+    `steering_disengage`, which drops the permission and takes the steering frame with it while
+    the arm's own signal -- the heartbeat -- is never withdrawn."""
+    self._arm_lateral()
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+
+    self._rx(self._angle_meas_msg(0, hands_on_level=3))
+
+    self.assertTrue(self.safety.get_steering_disengage_prev())
+    self.assertFalse(self.safety.get_controls_allowed_lateral())
+    self.assertFalse(self._tx(self._steer_tx_msg()))
 
 
 class TestTeslaIgnition(unittest.TestCase):

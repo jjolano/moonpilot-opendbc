@@ -311,6 +311,12 @@ static safety_config ford_init(uint16_t param) {
   const uint16_t FORD_PARAM_CANFD = 2;
   const bool ford_canfd = GET_FLAG(param, FORD_PARAM_CANFD);
 
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit.
+  // Host-armed: this mode never populates `acc_main_on` (EngBrakeData carries cruise engaged, not
+  // the main switch), so openpilot's own engaged heartbeat is the arm.
+  const uint16_t FORD_PARAM_LATERAL_ENGAGE = 4;
+  lateral_engage_set_enabled(GET_FLAG(param, FORD_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   safety_config ret;
   if (ford_canfd) {
     ret = BUILD_SAFETY_CFG(ford_rx_checks, FORD_CANFD_STOCK_TX_MSGS);

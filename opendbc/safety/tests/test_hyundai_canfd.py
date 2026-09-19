@@ -8,6 +8,7 @@ from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
 from opendbc.safety.tests.hyundai_common import HyundaiButtonBase, HyundaiLongitudinalBase
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name -- see AGENTS.md
 
 # All combinations of radar/camera-SCC and gas/hybrid/EV cars
 ALL_GAS_EV_HYBRID_COMBOS = [
@@ -282,6 +283,41 @@ class TestHyundaiCanfdLFASteeringLongAltButtons(TestHyundaiCanfdLFASteeringLongB
   def test_acc_cancel(self):
     # Alt buttons does not use SCC_CONTROL to cancel if longitudinal
     pass
+
+
+# moonpilot: lateral engagement on the CANFD init. Radar-SCC ICE cars, the first of
+# ALL_GAS_EV_HYBRID_COMBOS and the stock-ACC config the feature lives on -- and host-armed, because
+# hyundai_canfd_init decodes no cruise main switch either (ADAPTIVE_CRUISE_MAIN_BTN is a button
+# press, SCC_CONTROL's ACCMode a state).
+class TestHyundaiCanfdLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestHyundaiCanfdLFASteeringBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  SAFETY_PARAM = 0
+  GAS_MSG = ("ACCELERATOR_BRAKE_ALT", "ACCELERATOR_PEDAL_PRESSED")
+  SCC_BUS = 0
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
+
+  def _steer_tx_msg(self):
+    """A steering message that is only legal while steering is permitted"""
+    self._set_prev_torque(100)
+    return self._torque_cmd_msg(100, steer_req=1)
+
+  def _accel_tx_msg(self):
+    """SCC_CONTROL is in this config's tx set, but only as a cancel: the acceleration request
+    inside it is the half the permission must not reach."""
+    return self.packer.make_can_msg_safety("SCC_CONTROL", self.SCC_BUS, {"ACCMode": 4, "aReqRaw": -1.0, "aReqValue": -1.0})
+
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(HyundaiSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.hyundaiCanfd, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
 
 
 if __name__ == "__main__":

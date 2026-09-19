@@ -269,6 +269,12 @@ static safety_config hyundai_init(uint16_t param) {
   hyundai_common_init(param);
   hyundai_legacy = false;
 
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, host-armed. This mode decodes no
+  // cruise main switch to require -- CLU11's CF_Clu_CruiseSwMain and SCC12's ACCMode are a button
+  // press and the ACC state, neither of them `acc_main_on` -- so openpilot's engaged heartbeat is
+  // the arm. See HYUNDAI_PARAM_LATERAL_ENGAGE for the bit.
+  lateral_engage_set_enabled(GET_FLAG(param, HYUNDAI_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   safety_config ret;
   if (hyundai_longitudinal) {
     // Use CLU11 (buttons) to manage controls allowed instead of SCC cruise state
@@ -332,6 +338,9 @@ static safety_config hyundai_legacy_init(uint16_t param) {
   hyundai_legacy = true;
   hyundai_longitudinal = false;
   hyundai_camera_scc = false;
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, the bit and host arm hyundai_init
+  // reads too -- the param reaches this init unchanged and these cars are stock-ACC as well.
+  lateral_engage_set_enabled(GET_FLAG(param, HYUNDAI_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
   return BUILD_SAFETY_CFG(hyundai_legacy_rx_checks, HYUNDAI_TX_MSGS);
 }
 

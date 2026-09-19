@@ -19,7 +19,12 @@ static safety_config volkswagen_mlb_init(uint16_t param) {
     {.msg = {{MSG_LS_01, 0, 4, 10U, .ignore_checksum = true, .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
   };
 
-  SAFETY_UNUSED(param);
+  // moonpilot: the lateral-only permission, on common.h's shared VW bit -- a car runs one VW mode
+  // at a time, so the four platforms can share it. ARM_HOST, not MQB/MEB's ARM_SWITCH: this rx
+  // hook decodes no cruise main switch at all (TSK_04 carries only the stock ACC engaged status),
+  // so there is nothing on the car to arm from. See moonpilot/lateral_engage.h.
+  lateral_engage_set_enabled(GET_FLAG(param, FLAG_VOLKSWAGEN_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   volkswagen_common_init();
 
   return BUILD_SAFETY_CFG(volkswagen_mlb_rx_checks, VOLKSWAGEN_MLB_STOCK_TX_MSGS);

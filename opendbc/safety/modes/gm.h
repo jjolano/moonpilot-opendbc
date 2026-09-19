@@ -159,6 +159,12 @@ static safety_config gm_init(uint16_t param) {
   const uint16_t GM_PARAM_HW_CAM = 1;
   const uint16_t GM_PARAM_EV = 4;
 
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit.
+  // Host-armed: this mode never populates `acc_main_on` (it decodes cruise engaged, not a main
+  // switch), so openpilot's own engaged heartbeat is the arm.
+  const uint16_t GM_PARAM_LATERAL_ENGAGE = 8;
+  lateral_engage_set_enabled(GET_FLAG(param, GM_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
   // common safety checks assume unscaled integer values
   static const int GM_GAS_TO_CAN = 8;  // 1 / 0.125
 

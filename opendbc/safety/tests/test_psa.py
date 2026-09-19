@@ -4,7 +4,9 @@ import unittest
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: lateral engagement coverage
 from opendbc.safety.tests.common import CANPackerSafety
+from opendbc.car.psa.values import PsaSafetyFlags
 
 LANE_KEEP_ASSIST = 0x3F2
 
@@ -84,6 +86,37 @@ class TestPsaStockSafety(TestPsaSafetyBase):
     self.safety = libsafety_py.libsafety
     self.safety.set_safety_hooks(CarParams.SafetyModel.psa, 0)
     self.safety.init_tests()
+
+
+# moonpilot: lateral engagement, stock ACC only -- the configuration where the car's own ACC holds
+# speed. PSA is an ARM_HOST brand: psa.h decodes no cruise main switch, so openpilot's own engaged
+# heartbeat is the whole arm (see moonpilot/lateral_engage.h).
+class TestPsaLateralEngageBase(TestPsaStockSafety):
+  def _set_lateral_engage_hooks(self, enabled):
+    param = int(PsaSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.psa, param)
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _steer_tx_msg(self):
+    """LANE_KEEP_ASSIST with a live angle request: legal only while steering is permitted"""
+    return self._angle_cmd_msg(0, True)
+
+  def _accel_tx_msg(self):
+    """0x2B6 HS2_DYN1_MDD_ETAT_2B6, the car's own ACC deceleration request. PSA's tx list is
+    steering and nothing else, and the platform has no openpilot longitudinal mode to add one, so
+    what blocks acceleration here is upstream's tx list, not the permission."""
+    return common.make_msg(self.MAIN_BUS, 0x2B6, 8)
+
+
+class TestPsaLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestPsaLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

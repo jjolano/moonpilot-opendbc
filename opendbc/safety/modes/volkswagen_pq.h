@@ -65,10 +65,15 @@ static safety_config volkswagen_pq_init(uint16_t param) {
 
   volkswagen_common_init();
 
+  // moonpilot: the lateral-only permission, on common.h's shared VW bit -- a car runs one VW mode
+  // at a time, so the four platforms can share it. ARM_HOST, not MQB/MEB's ARM_SWITCH: PQ only
+  // populates `acc_main_on` under openpilot longitudinal control, which is the one configuration
+  // this feature is not for, so there is no switch on the car to arm from. See
+  // moonpilot/lateral_engage.h.
+  lateral_engage_set_enabled(GET_FLAG(param, FLAG_VOLKSWAGEN_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
+
 #ifdef ALLOW_DEBUG
   volkswagen_longitudinal = GET_FLAG(param, FLAG_VOLKSWAGEN_LONG_CONTROL);
-#else
-  SAFETY_UNUSED(param);
 #endif
   return volkswagen_longitudinal ? BUILD_SAFETY_CFG(volkswagen_pq_rx_checks, VOLKSWAGEN_PQ_LONG_TX_MSGS) : \
                                    BUILD_SAFETY_CFG(volkswagen_pq_rx_checks, VOLKSWAGEN_PQ_STOCK_TX_MSGS);

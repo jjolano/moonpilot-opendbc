@@ -1007,10 +1007,36 @@ class SafetyTest(SafetyTestBase):
               continue
             if attr.startswith('TestSubaruPreglobal') and current_test.startswith('TestSubaruPreglobal'):
               continue
-            if {attr, current_test}.issubset({'TestVolkswagenPqSafety', 'TestVolkswagenPqStockSafety', 'TestVolkswagenPqLongSafety'}):
+            # A lateral-engagement class is its platform's stock configuration plus the permission,
+            # so its tx list is that platform's own and overlaps the platform's classes by
+            # construction. Explicit pairs rather than a blanket skip, because `all_tx` has to stay
+            # populated for the sanity assert below; every other brand still checks this one's
+            # frames. Ford, the Subaru pair and Hyundai CANFD are covered by the prefix rules
+            # above, and Tesla and the shared Volkswagen platforms by the rules below.
+            lateral_engage_pairs = (
+              {'TestChryslerLateralEngage', 'TestChryslerSafety'},
+              {'TestChryslerCuswLateralEngage', 'TestChryslerCuswSafety'},
+              {'TestGmLateralEngage', 'TestGmCameraSafety'},
+              {'TestHyundaiLateralEngage', 'TestHyundaiSafety'},
+              {'TestHyundaiLegacyLateralEngage', 'TestHyundaiLegacySafety'},
+              {'TestHyundaiLegacyLateralEngage', 'TestHyundaiLateralEngage'},
+              {'TestMazdaLateralEngage', 'TestMazdaSafety'},
+              {'TestMGLateralEngage', 'TestMGSafety'},
+              {'TestNissanLateralEngage', 'TestNissanSafety'},
+              {'TestNissanLateralEngage', 'TestNissanSafetyAltEpsBus'},
+              {'TestNissanLateralEngage', 'TestNissanLeafSafety'},
+              {'TestPsaLateralEngage', 'TestPsaStockSafety'},
+              {'TestRivianLateralEngage', 'TestRivianStockSafety'},
+              {'TestVolkswagenPqLateralEngage', 'TestVolkswagenPqStockSafety'},
+            )
+            if {attr, current_test} in lateral_engage_pairs:
+              continue
+            if {attr, current_test}.issubset({'TestVolkswagenPqSafety', 'TestVolkswagenPqStockSafety', 'TestVolkswagenPqLongSafety',
+                                              'TestVolkswagenPqLateralEngage'}):
               continue
             if {attr, current_test}.issubset({'TestGmCameraSafety', 'TestGmCameraLongitudinalSafety', 'TestGmAscmSafety',
-                                              'TestGmCameraEVSafety', 'TestGmCameraLongitudinalEVSafety', 'TestGmAscmEVSafety'}):
+                                              'TestGmCameraEVSafety', 'TestGmCameraLongitudinalEVSafety', 'TestGmAscmEVSafety',
+                                              'TestGmLateralEngage'}):
               continue
             if attr.startswith('TestFord') and current_test.startswith('TestFord'):
               continue

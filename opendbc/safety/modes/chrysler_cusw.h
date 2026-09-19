@@ -2,7 +2,11 @@
 
 
 static safety_config chrysler_cusw_init(uint16_t param) {
-  SAFETY_UNUSED(param);
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, the only thing this init reads from
+  // the param. Host-armed: this mode never populates `acc_main_on` (ACC_CONTROL carries ACC active,
+  // not the main switch), so openpilot's own engaged heartbeat is the arm.
+  const uint32_t CHRYSLER_PARAM_LATERAL_ENGAGE = 4U;
+  lateral_engage_set_enabled(GET_FLAG(param, CHRYSLER_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
 
   static const CanMsg CHRYSLER_CUSW_TX_MSGS[] = {
     {0x1F6U, 0, 4, .check_relay = true},

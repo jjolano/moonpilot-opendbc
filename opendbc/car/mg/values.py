@@ -1,8 +1,13 @@
 from dataclasses import dataclass, field
+from enum import IntFlag
 
 from opendbc.car import Bus, CarSpecs, DbcDict, PlatformConfig, Platforms
 from opendbc.car.docs_definitions import CarHarness, CarDocs, CarParts
 from opendbc.car.fw_query_definitions import FwQueryConfig, Request, StdQueries
+
+
+class MgSafetyFlags(IntFlag):
+  LATERAL_ENGAGE = 1  # moonpilot seam, see AGENTS.md
 
 
 @dataclass

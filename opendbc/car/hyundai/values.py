@@ -66,6 +66,7 @@ class HyundaiSafetyFlags(IntFlag):
   CANFD_LKA_STEER_MSG_ALT = 128
   FCEV_GAS = 256
   ALT_LIMITS_2 = 512
+  LATERAL_ENGAGE = 1024  # moonpilot seam, see AGENTS.md
 
 
 # Hyundai/Kia/Genesis SCC (Smart Cruise Control) and steering architecture:

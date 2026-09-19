@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import unittest
 
+from opendbc.car.mg.values import MgSafetyFlags
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name -- see AGENTS.md
 
 
 def checksum(msg):
@@ -71,6 +73,39 @@ class TestMGSafety(common.CarSafetyTest, common.DriverTorqueSteeringSafetyTest):
   def _pcm_status_msg(self, enable):
     values = {"ACCSysSts_RadarHSC2": 2 if enable else 1, "ACCSysAlvRlngCtr_SCSHSC2": self._counter(0x242)}
     return self.packer.make_can_msg_safety("RADAR_HSC2_FrP00", 0, values, fix_checksum=checksum)
+
+
+# moonpilot: lateral engagement. Stock ACC only -- mg's mode enters controls on RADAR_HSC2_FrP00's
+# ACCSysSts_RadarHSC2 and its tx set is the steering message alone -- and host-armed: that signal is
+# the ACC state, not the cruise main switch, so openpilot's heartbeat is the arm.
+class TestMGLateralEngageBase(TestMGSafety):
+  def _steer_tx_msg(self):
+    """A steering message that is only legal while steering is permitted"""
+    self._set_prev_torque(100)
+    return self._torque_cmd_msg(100, steer_req=1)
+
+  def _accel_tx_msg(self):
+    """RADAR_HSC2_FrP00: where this car's ACC status rides, and the message openpilot would have to
+    write to command acceleration at all. The permission must not add it to the tx set."""
+    values = {"ACCSysSts_RadarHSC2": 2, "ACCSysAlvRlngCtr_SCSHSC2": self._counter(0x242)}
+    return self.packer.make_can_msg_safety("RADAR_HSC2_FrP00", 0, values, fix_checksum=checksum)
+
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(MgSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.mg, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+
+class TestMGLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestMGLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":

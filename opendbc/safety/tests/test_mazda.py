@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import unittest
 
+from opendbc.car.mazda.values import MazdaSafetyFlags
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety, make_msg
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name -- see AGENTS.md
 
 
 class TestMazdaSafety(common.CarSafetyTest, common.DriverTorqueSteeringSafetyTest):
@@ -101,6 +103,40 @@ class TestMazdaIgnition(unittest.TestCase):
     self.assertTrue(self.safety.get_ignition_can())
     self.safety.ignition_can_hook(self._msg(0x20))
     self.assertFalse(self.safety.get_ignition_can())
+
+
+# moonpilot: lateral engagement. Stock ACC only, which is the only thing mazda's mode knows -- it
+# enters controls on CRZ_CTRL's rising edge and sends no longitudinal command -- and host-armed:
+# that bit is the ACC state, not the cruise main switch, so openpilot's heartbeat is the arm.
+class TestMazdaLateralEngageBase(TestMazdaSafety):
+  def _steer_tx_msg(self):
+    """A steering message that is only legal while steering is permitted. Mazda sets no steering
+    request bit, so the torque value is the whole command."""
+    self._set_prev_torque(100)
+    return self._torque_cmd_msg(100)
+
+  def _accel_tx_msg(self):
+    """A resume press: the one longitudinal command this car's tx set carries. Upstream allows it
+    only with controls_allowed -- stock ACC -- and the lateral permission is deliberately not that
+    flag."""
+    return self._button_msg(resume=True)
+
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(MazdaSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.mazda, flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+
+class TestMazdaLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestMazdaLateralEngageBase):
+  LATERAL_ENGAGE_ARM = "host"
+
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 if __name__ == "__main__":
