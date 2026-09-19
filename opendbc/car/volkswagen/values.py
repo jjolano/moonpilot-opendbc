@@ -215,6 +215,7 @@ class WMI(StrEnum):
 class VolkswagenSafetyFlags(IntFlag):
   LONG_CONTROL = 1
   MEB_ALT_CRC = 2
+  LATERAL_ENGAGE = 4  # moonpilot seam, see AGENTS.md
 
 
 class VolkswagenFlags(IntFlag):

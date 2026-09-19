@@ -3,6 +3,13 @@
 extern const uint16_t FLAG_VOLKSWAGEN_LONG_CONTROL;
 const uint16_t FLAG_VOLKSWAGEN_LONG_CONTROL = 1;
 
+// moonpilot seam, see AGENTS.md: the lateral-only permission. Shared by the platforms that can
+// carry it -- MQB and MEB, whose rx hooks already decode the cruise main switch -- and read in
+// each of their inits. PQ is deliberately not among them: its acc_main_on is only set under
+// openpilot longitudinal control, which is the one configuration this feature does not apply to.
+extern const uint16_t FLAG_VOLKSWAGEN_LATERAL_ENGAGE;
+const uint16_t FLAG_VOLKSWAGEN_LATERAL_ENGAGE = 4;
+
 static uint8_t volkswagen_crc8_lut_8h2f[256]; // Static lookup table for CRC8 poly 0x2F, aka 8H2F/AUTOSAR
 
 extern bool volkswagen_longitudinal;

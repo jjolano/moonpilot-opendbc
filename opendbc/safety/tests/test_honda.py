@@ -5,6 +5,7 @@ import numpy as np
 from opendbc.car.honda.values import HondaSafetyFlags
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: lateral engagement coverage
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.common import CANPackerSafety, MAX_WRONG_COUNTERS
 
@@ -586,6 +587,91 @@ class TestHondaBoschRadarlessLongSafety(common.LongitudinalAccelSafetyTest, Hond
   # Longitudinal doesn't need to send buttons
   def test_spam_cancel_safety_check(self):
     pass
+
+
+# moonpilot: lateral engagement, stock ACC only -- the configuration where the car's own ACC holds
+# speed. Honda needs no new rx check for it: SCM_FEEDBACK (0x326, 10 Hz) and SCM_BUTTONS (0x1A6,
+# 25 Hz), which carry the cruise main switch, are already in HONDA_COMMON_RX_CHECKS at upstream's
+# own rates. One class per init branch, since the enable is read in both `honda_nidec_init` and
+# `honda_bosch_init`. The steering permit this feature rides on is Honda's own (see the STEER check
+# in honda.h), not lateral.h's, which is why `_steer_tx_msg` below is the real test of the wiring.
+class TestHondaNidecLateralEngageBase(TestHondaNidecPcmSafety):
+  SAFETY_MODEL = CarParams.SafetyModel.hondaNidec
+
+  def _acc_main_msg(self, main_on):
+    return self._acc_state_msg(main_on)
+
+  def _set_lateral_engage_hooks(self, enabled):
+    self.safety.set_safety_hooks(self.SAFETY_MODEL, int(HondaSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+
+  def _steer_tx_msg(self):
+    """Nonzero steering torque: illegal with neither permission, legal with either"""
+    return self._send_steer_msg(0x1000)
+
+  def _accel_tx_msg(self):
+    """A brake command, which the longitudinal permission owns and this one must never reach"""
+    return self._send_brake_msg(1)
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+
+class TestHondaNidecLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestHondaNidecLateralEngageBase):
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
+
+
+class TestHondaNidecLateralEngageAlt(lateral_engage_common.LateralEngageSafetyTest, TestHondaNidecLateralEngageBase,
+                                      TestHondaNidecPcmAltSafety):
+  """Nidec with the alternate SCM messages: the main switch comes from 0x1A6 bit 47, not 0x326.
+
+  Inherits `TestHondaNidecPcmAltSafety` for the message builders, whose SCM_BUTTONS carries MAIN_ON
+  (upstream's `HondaBase._button_msg` takes that argument and then drops it). Same fork code as the
+  stock class — the enable is read in one init function for both — so this is about the feature
+  working on the variant, not about covering new lines.
+  """
+  def setUp(self):
+    self.packer = CANPackerSafety("acura_ilx_2016_can_generated")
+    self.safety = libsafety_py.libsafety
+    self._set_lat_engage_hooks()
+
+  def _set_lateral_engage_hooks(self, enabled):
+    flags = int(HondaSafetyFlags.NIDEC_ALT)
+    if enabled:
+      flags |= int(HondaSafetyFlags.LATERAL_ENGAGE)
+    self.safety.set_safety_hooks(self.SAFETY_MODEL, flags)
+
+  def _acc_main_msg(self, main_on):
+    return self._acc_state_msg(main_on)
+
+
+class TestHondaBoschLateralEngageBase(TestHondaBoschSafety):
+  SAFETY_MODEL = CarParams.SafetyModel.hondaBosch
+
+  def _acc_main_msg(self, main_on):
+    return self._acc_state_msg(main_on)
+
+  def _set_lateral_engage_hooks(self, enabled):
+    self.safety.set_safety_hooks(self.SAFETY_MODEL, int(HondaSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+
+  def _steer_tx_msg(self):
+    return self._send_steer_msg(0x1000)
+
+  def _accel_tx_msg(self):
+    """ACC_CONTROL, which stock Bosch cannot send at all: the permission must not change that"""
+    return self.packer.make_can_msg_safety("ACC_CONTROL", self.PT_BUS, {"ACCEL_COMMAND": -1.0})
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+
+class TestHondaBoschLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestHondaBoschLateralEngageBase):
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 class TestHondaBoschCANFDSafetyBase(TestHondaBoschSafetyBase):

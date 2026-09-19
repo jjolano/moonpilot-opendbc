@@ -428,8 +428,17 @@ class TestToyotaLateralEngageBase(TestToyotaStockLongitudinalBase):
   def _accel_tx_msg(self):
     return self._accel_msg(-1.0)
 
-  def _set_lat_engage_hooks(self, base_flags):
-    self.safety.set_safety_hooks(CarParams.SafetyModel.toyota, self.EPS_SCALE | int(base_flags | ToyotaSafetyFlags.LATERAL_ENGAGE))
+  def _acc_main_msg(self, main_on):
+    return self.packer.make_can_msg_safety("PCM_CRUISE_2", 0, {"MAIN_ON": int(main_on)})
+
+  def _set_lateral_engage_hooks(self, enabled):
+    # EPS_SCALE is not a flag: toyota's param carries the scaling factor in its low byte
+    flags = int(self.BASE_FLAGS) | (int(ToyotaSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+    self.safety.set_safety_hooks(CarParams.SafetyModel.toyota, self.EPS_SCALE | flags)
+
+  def _set_lat_engage_hooks(self):
+    """The brand base's own setup: install with the permission on, then let init run."""
+    self._set_lateral_engage_hooks(True)
     self.safety.init_tests()
 
 
@@ -439,7 +448,7 @@ class TestToyotaLateralEngageTorque(lateral_engage_common.LateralEngageSafetyTes
   def setUp(self):
     self.packer = CANPackerSafety("toyota_nodsu_pt_generated")
     self.safety = libsafety_py.libsafety
-    self._set_lat_engage_hooks(self.BASE_FLAGS)
+    self._set_lat_engage_hooks()
 
 
 class TestToyotaLateralEngageAngle(TestToyotaLateralEngageTorque, TestToyotaSafetyAngle):
@@ -448,7 +457,7 @@ class TestToyotaLateralEngageAngle(TestToyotaLateralEngageTorque, TestToyotaSafe
   def setUp(self):
     self.packer = CANPackerSafety("toyota_nodsu_pt_generated")
     self.safety = libsafety_py.libsafety
-    self._set_lat_engage_hooks(self.BASE_FLAGS)
+    self._set_lat_engage_hooks()
 
   def _steer_tx_msg(self):
     self._reset_angle_measurement(0)
@@ -465,7 +474,7 @@ class TestToyotaLateralEngageAltBrake(TestToyotaAltBrakeSafety, TestToyotaLatera
   def setUp(self):
     self.packer = CANPackerSafety("toyota_new_mc_pt_generated")
     self.safety = libsafety_py.libsafety
-    self._set_lat_engage_hooks(self.BASE_FLAGS)
+    self._set_lat_engage_hooks()
 
 
 class TestToyotaLateralEngageSecOc(TestToyotaSecOcSafetyBase, TestToyotaLateralEngageBase, lateral_engage_common.LateralEngageSafetyTest):
@@ -477,7 +486,7 @@ class TestToyotaLateralEngageSecOc(TestToyotaSecOcSafetyBase, TestToyotaLateralE
   def setUp(self):
     self.packer = CANPackerSafety("toyota_secoc_pt_generated")
     self.safety = libsafety_py.libsafety
-    self._set_lat_engage_hooks(self.BASE_FLAGS)
+    self._set_lat_engage_hooks()
 
   # SecOC cars take accel on ACC_CONTROL_2
   def _accel_tx_msg(self):

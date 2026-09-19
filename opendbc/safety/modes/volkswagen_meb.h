@@ -117,6 +117,9 @@ static safety_config volkswagen_meb_init(uint16_t param) {
   };
 
   volkswagen_common_init();
+  // moonpilot seam, see AGENTS.md: the lateral-only permission. No new rx check: Motor_51, which
+  // carries the cruise main switch, is already checked above at 50 Hz.
+  lateral_engage_set_enabled(GET_FLAG(param, FLAG_VOLKSWAGEN_LATERAL_ENGAGE));
   const uint16_t FLAG_VOLKSWAGEN_MEB_ALT_CRC = 2;
   volkswagen_meb_alt_crc = GET_FLAG(param, FLAG_VOLKSWAGEN_MEB_ALT_CRC);
 

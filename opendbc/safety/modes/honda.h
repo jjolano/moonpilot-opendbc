@@ -256,7 +256,11 @@ static bool honda_tx_hook(const CANPacket_t *msg) {
 
   // STEER: safety check
   if ((msg->addr == 0xE4U) || (msg->addr == 0x194U)) {
-    if (!controls_allowed) {
+    // moonpilot seam, see AGENTS.md: Honda is the one brand whose steering permit is its own
+    // rather than lateral.h's, so the half-engagement permission has to be read here too or the
+    // feature would be enabled and still unable to steer. Every other brand calls
+    // steer_torque/angle/curvature_cmd_checks, which already carry the widened test.
+    if (!(controls_allowed || controls_allowed_lateral)) {
       bool steer_applied = msg->data[0] | msg->data[1];
       if (steer_applied) {
         tx = false;
@@ -298,6 +302,11 @@ static safety_config honda_nidec_init(uint16_t param) {
                                      {0x30C, 0, 8, .check_relay = true}, {0x33D, 0, 5, .check_relay = true}};
 
   const uint16_t HONDA_PARAM_NIDEC_ALT = 4;
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit.
+  // Honda needs no rx check for it: SCM_FEEDBACK/SCM_BUTTONS, which carry the cruise main switch,
+  // are already checked above at their own rates.
+  const uint16_t HONDA_PARAM_LATERAL_ENGAGE = 32;
+  lateral_engage_set_enabled(GET_FLAG(param, HONDA_PARAM_LATERAL_ENGAGE));
 
   honda_hw = HONDA_NIDEC;
   honda_brake = 0;
@@ -355,6 +364,9 @@ static safety_config honda_bosch_init(uint16_t param) {
   const uint16_t HONDA_PARAM_ALT_BRAKE = 1;
   const uint16_t HONDA_PARAM_RADARLESS = 8;
   const uint16_t HONDA_PARAM_BOSCH_CANFD = 16;
+  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit
+  const uint16_t HONDA_PARAM_LATERAL_ENGAGE = 32;
+  lateral_engage_set_enabled(GET_FLAG(param, HONDA_PARAM_LATERAL_ENGAGE));
 
   // Bosch radarless has the powertrain bus on bus 0
   static RxCheck honda_bosch_pt0_rx_checks[] = {

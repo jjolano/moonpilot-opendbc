@@ -9,17 +9,18 @@
 // replacement: controls_allowed, and therefore every longitudinal check
 // (get_longitudinal_allowed), keeps upstream's semantics untouched.
 //
-// Enabled per-brand by the safety param (see toyota_init), so a stock config
-// never reaches the rule. Brake and regen deliberately do not appear here:
+// Enabled per-brand by that brand's safety param (one bit in each of Toyota's,
+// Honda's and Volkswagen's own flag spaces), so a stock config never reaches the
+// rule. Brake and regen deliberately do not appear here:
 // keeping steering through a brake tap is the feature. What drops it is the
 // cruise main switch, a steering override, openpilot disengaging, and the
 // lag/validity exits in safety_tick.
 //
 // The steering-override term below is upstream's `steering_disengage`, which
-// only Tesla's rx hook ever sets (opendbc/safety/modes/tesla.h): on the fork's
-// one supported brand that branch is inert by construction, and a driver's
-// torque is handled the way upstream handles it — the car blends it, and
-// openpilot overrides rather than disengaging.
+// only Tesla's rx hook ever sets (opendbc/safety/modes/tesla.h): on every brand
+// the fork enables the rule for that branch is inert by construction, and a
+// driver's torque is handled the way upstream handles it — the car blends it,
+// and openpilot overrides rather than disengaging.
 
 bool controls_allowed_lateral = false;
 
@@ -57,7 +58,8 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
   }
 
   // A steering override always wins, whatever armed it. Tesla-only signal, so
-  // on Toyota this branch does not fire — see the note at the top of this file.
+  // on no brand the fork enables this for does the branch fire — see the note at
+  // the top of this file.
   if (steering_override && !lateral_engage_steering_override_prev) {
     controls_allowed_lateral = false;
   }

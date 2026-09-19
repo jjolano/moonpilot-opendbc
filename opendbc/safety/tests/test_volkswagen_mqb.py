@@ -4,6 +4,7 @@ import numpy as np
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: lateral engagement coverage
 from opendbc.safety.tests.common import CANPackerSafety
 from opendbc.car.volkswagen.values import VolkswagenSafetyFlags
 
@@ -141,6 +142,42 @@ class TestVolkswagenMqbStockSafety(TestVolkswagenMqbSafetyBase):
     # do not block resume if we are engaged already
     self.safety.set_controls_allowed(1)
     self.assertTrue(self._tx(self._gra_acc_01_msg(resume=1)))
+
+
+class TestVolkswagenMqbLateralEngageBase(TestVolkswagenMqbStockSafety):
+  """The stock config plus the fork's permission, so upstream's own tx list and expectations hold.
+
+  MQB needs no new rx check for the feature: TSK_06, which carries the cruise main switch, is
+  already checked at 50 Hz, so this drives upstream's own decode rather than a fork one.
+  """
+  def _set_lateral_engage_hooks(self, enabled):
+    param = int(VolkswagenSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.volkswagen, param)
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _acc_main_msg(self, main_on):
+    """TSK_06 status 2 is the main switch on with ACC not engaged -- exactly the half-engaged state"""
+    return self._tsk_status_msg(False, main_switch=main_on)
+
+  def _steer_tx_msg(self):
+    """Seeded so the rate and driver-torque checks pass, leaving the permit as the only variable"""
+    self.safety.set_torque_meas(100, 100)
+    self.safety.set_desired_torque_last(100)
+    self.safety.set_rt_torque_last(100)
+    return self._torque_cmd_msg(100, steer_req=1)
+
+  def _accel_tx_msg(self):
+    """ACC_06: stock MQB cannot send it at all, and the lateral permit must not change that"""
+    return self._acc_06_msg(-1.0)
+
+
+class TestVolkswagenMqbLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestVolkswagenMqbLateralEngageBase):
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 class TestVolkswagenMqbLongSafety(TestVolkswagenMqbSafetyBase):

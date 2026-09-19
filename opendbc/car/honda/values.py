@@ -56,6 +56,7 @@ class HondaSafetyFlags(IntFlag):
   NIDEC_ALT = 4
   RADARLESS = 8
   BOSCH_CANFD = 16
+  LATERAL_ENGAGE = 32  # moonpilot seam, see AGENTS.md
 
 
 class HondaFlags(IntFlag):

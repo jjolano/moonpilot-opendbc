@@ -1,8 +1,6 @@
 import abc
 import unittest
 
-from opendbc.car.toyota.values import ToyotaSafetyFlags
-from opendbc.car.structs import CarParams
 from opendbc.safety.tests import common
 
 
@@ -12,15 +10,25 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
   that opts in through its safety param.
 
   The enclosing class must provide `self.safety`, `self.packer`, `self._rx`, `self._tx`,
-  `self._steer_tx_msg()` (a steering message that is only legal while steering is permitted)
-  and `self._accel_tx_msg()` (an acceleration message, which the permission must never enable).
-  The rx-check set and the enable both come from the safety param, so every test drives the
-  real hooks rather than the globals: `_arm_lateral` is the car's own path to the state.
-  """
+  `self._steer_tx_msg()` (a steering message that is only legal while steering is permitted),
+  `self._accel_tx_msg()` (an acceleration message, which the permission must never enable), and
+  two brand hooks:
 
-  EPS_SCALE: int
-  # The safety param flags the enclosing class sets up with, minus the lateral-engagement flag
-  BASE_FLAGS = ToyotaSafetyFlags(0)
+    `_set_lateral_engage_hooks(enabled)` — install this brand's hooks with the permission off or
+    on. The permission is enabled *by* the brand init reading the safety param, so this is the
+    only way to arm it and the tests drive the real path rather than the globals. Installed with
+    `set_safety_hooks` rather than the globals so the clearing in `lateral_engage_init`, which
+    runs before the brand init, is exercised too.
+
+    `_acc_main_msg(main_on)` — this brand's cruise main switch message, the signal the permission
+    keys on.
+
+  Nothing here knows a brand: the flag bit, the safety model, any non-flag part of the param and
+  the main-switch message all come from the enclosing class, so a new brand is one class that
+  supplies them and no test changes. Both hooks are deliberately *not* stubbed here: this mixin is
+  first in every concrete class's MRO, so a stub would shadow the brand's implementation rather
+  than be overridden by it.
+  """
 
   @classmethod
   def setUpClass(cls):
@@ -30,15 +38,6 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
       cls.safety = None
       raise unittest.SkipTest
     super().setUpClass()
-
-  def _set_safety_hooks(self, *extra_flags):
-    param = int(self.BASE_FLAGS)
-    for flag in extra_flags:
-      param |= int(flag)
-    self.safety.set_safety_hooks(CarParams.SafetyModel.toyota, self.EPS_SCALE | param)
-
-  def _acc_main_msg(self, main_on: bool):
-    return self.packer.make_can_msg_safety("PCM_CRUISE_2", 0, {"MAIN_ON": int(main_on)})
 
   def _arm_lateral(self):
     """Turn the cruise main switch on with openpilot engaged, i.e. the driver's own path."""
@@ -56,14 +55,14 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
 
   def test_lateral_engage_inert_without_flag(self):
     """A stock safety param carries the enable as false, so the permission never rises"""
-    self._set_safety_hooks()
+    self._set_lateral_engage_hooks(False)
     self.safety.set_heartbeat_engaged(True)
     self.assertTrue(self._rx(self._acc_main_msg(True)))
 
     self.assertFalse(self.safety.get_controls_allowed_lateral())
     self.assertFalse(self._tx(self._steer_tx_msg()))
     self.assertFalse(self._tx(self._accel_tx_msg()))
-    self._set_safety_hooks(ToyotaSafetyFlags.LATERAL_ENGAGE)
+    self._set_lateral_engage_hooks(True)
 
   def test_lateral_engage_arms_on_acc_main_and_heartbeat(self):
     """Arms on the rising edge of either input, and holds for as long as both stay true"""
@@ -90,8 +89,9 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
   def test_lateral_engage_disarms_on_steering_disengage(self):
     """A steering override wins over the permission, and only the next edge re-arms.
 
-    `steering_disengage` is upstream's, and only Tesla's rx hook sets it, so no Toyota can reach
-    this state on the road — the harness injects it to hold the rule itself.
+    `steering_disengage` is upstream's, and only Tesla's rx hook sets it, so no car in this
+    feature's scope can reach this state on the road — the harness injects it to hold the rule
+    itself.
     """
     self._arm_lateral()
 
@@ -121,9 +121,9 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     """A safety mode change resets the permission, and only a brand init can re-enable it"""
     self._arm_lateral()
 
-    self._set_safety_hooks(ToyotaSafetyFlags.LATERAL_ENGAGE)
+    self._set_lateral_engage_hooks(True)
     self.assertFalse(self.safety.get_controls_allowed_lateral())
-    self._set_safety_hooks()
+    self._set_lateral_engage_hooks(False)
 
   def test_the_plan_end_to_end_sequence(self):
     """The whole feature in one sequence: main switch on permits steering and nothing else.

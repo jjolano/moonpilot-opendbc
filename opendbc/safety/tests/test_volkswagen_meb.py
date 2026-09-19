@@ -6,6 +6,7 @@ from opendbc.car.structs import CarParams
 from opendbc.car.volkswagen.values import VolkswagenSafetyFlags
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
+import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: lateral engagement coverage
 from opendbc.safety.tests.common import CANPackerSafety
 
 MAX_ACCEL = 2.0
@@ -357,6 +358,39 @@ class TestVolkswagenMebSafety(TestVolkswagenMebSafetyBase):
         self.safety.set_controls_allowed(controls_allowed)
         send = controls_allowed or acc_status not in (ACC_AKTIV_REGELT, ACC_OVERRIDE)
         self.assertEqual(send, self._tx(self._accel_msg(self.INACTIVE_ACCEL, acc_status=acc_status)))
+
+
+class TestVolkswagenMebLateralEngageBase(TestVolkswagenMebSafety):
+  """The stock config plus the fork's permission, so upstream's own tx list and expectations hold.
+
+  MEB needs no new rx check for the feature: Motor_51, which carries the cruise main switch, is
+  already checked at 50 Hz. MEB is curvature-steered, so the permit is exercised through
+  `steer_curvature_cmd_checks`, which reads the widened test.
+  """
+  def _set_lateral_engage_hooks(self, enabled):
+    param = int(VolkswagenSafetyFlags.LATERAL_ENGAGE) if enabled else 0
+    self.safety.set_safety_hooks(CarParams.SafetyModel.volkswagenMeb, param)
+
+  def _set_lat_engage_hooks(self):
+    self._set_lateral_engage_hooks(True)
+    self.safety.init_tests()
+
+  def _acc_main_msg(self, main_on):
+    return self._tsk_status_msg(False, main_switch=main_on)
+
+  def _steer_tx_msg(self):
+    """Steer power is what the permit gates: zero curvature, non-zero power, within the limits"""
+    return self._curvature_cmd_msg(0, steer_req=True, power=self.MAX_POWER_TEST)
+
+  def _accel_tx_msg(self):
+    """ACC_18: a stock MEB does not send acceleration requests, and the permit must not change it"""
+    return self._accel_msg(-1.0)
+
+
+class TestVolkswagenMebLateralEngage(lateral_engage_common.LateralEngageSafetyTest, TestVolkswagenMebLateralEngageBase):
+  def setUp(self):
+    super().setUp()
+    self._set_lat_engage_hooks()
 
 
 class TestVolkswagenMebGen2Safety(TestVolkswagenMebSafety):
