@@ -450,6 +450,26 @@ class TestToyotaLateralEngageTorque(lateral_engage_common.LateralEngageSafetyTes
     self.safety = libsafety_py.libsafety
     self._set_lat_engage_hooks()
 
+  def test_the_recorded_lka_train_goes_out(self):
+    """The driver's report as a regression test: the torque train from the failing engagement.
+
+    Route 000003b7--75a3ff0a5d--0, 46.431-47.352 s, on this car. Every STEERING_LKA frame
+    openpilot sent was rejected -- 93 of them, from the engagement's first frame until the command
+    happened to come back within MAX_RATE_UP of zero 0.92 s later -- so the car's lane-keeping ECU
+    saw no LKA message at all while openpilot believed it was steering. The first frame is the one
+    that mattered: the heartbeat the old rule waited for arrives only with pandad's next tick,
+    while openpilot is already ramping torque, and the rejection itself reset desired_torque_last
+    to 0, which put every frame after it more than MAX_RATE_UP from zero.
+    """
+    self.safety.set_timer(0)
+    self.safety.set_heartbeat_engaged(False)
+    self.assertTrue(self._rx(self._acc_main_msg(True)))
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    # The carcontroller's own limit, STEER_DELTA_UP = 15 units/frame, all with STEER_REQUEST=1
+    for torque in (15, 30, 45, 60, 75, 90, 95, 94, 92):
+      self.assertTrue(self._tx(self._torque_cmd_msg(torque, steer_req=1)), torque)
+
 
 class TestToyotaLateralEngageAngle(TestToyotaLateralEngageTorque, TestToyotaSafetyAngle):
   BASE_FLAGS = ToyotaSafetyFlags.STOCK_LONGITUDINAL | ToyotaSafetyFlags.LTA
@@ -463,6 +483,10 @@ class TestToyotaLateralEngageAngle(TestToyotaLateralEngageTorque, TestToyotaSafe
     self._reset_angle_measurement(0)
     self._set_prev_desired_angle(0)
     return self._lta_msg(1, 1, 0, 100)
+
+  @unittest.skip("LTA cars assert no actuation on the LKA message at all, so this train is not theirs")
+  def test_the_recorded_lka_train_goes_out(self):
+    pass
 
 
 class TestToyotaLateralEngageAltBrake(TestToyotaAltBrakeSafety, TestToyotaLateralEngageBase, lateral_engage_common.LateralEngageSafetyTest):

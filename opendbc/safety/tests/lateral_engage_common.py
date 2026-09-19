@@ -65,16 +65,16 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     self._set_lateral_engage_hooks(True)
 
   def test_lateral_engage_arms_on_acc_main_and_heartbeat(self):
-    """Arms on the rising edge of either input, and holds for as long as both stay true"""
+    """The main switch arms it; the heartbeat only has to keep arriving"""
     self._arm_lateral()
 
     # Persistence: a cycle with no edge keeps the permission
     self.safety.lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
-    # Heartbeat loss is not an edge — openpilot disengaging ends it outright
+    # A heartbeat that stops is not an edge: it clears only once the grace window has passed
     self.safety.lateral_engage_update(True, False, False)
-    self.assertFalse(self.safety.get_controls_allowed_lateral())
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
 
     # Re-arms on the heartbeat's own rising edge, with the main switch already on
     self.safety.lateral_engage_update(True, True, False)
@@ -83,6 +83,57 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     # Main switch off ends it, and its own rising edge arms it again
     self.safety.lateral_engage_update(False, True, False)
     self.assertFalse(self.safety.get_controls_allowed_lateral())
+    self.safety.lateral_engage_update(True, True, False)
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+
+  def test_lateral_engage_arms_without_the_heartbeat(self):
+    """The driver's own switch arms it with no heartbeat at all, and a torque frame goes out.
+
+    This is the recorded failure as a regression test. `heartbeat_engaged` rides pandad's 10 Hz USB
+    heartbeat, so it can only be true a tick *after* openpilot engaged, while openpilot is already
+    commanding torque. A frame this layer rejects resets `desired_torque_last`, and the rate limiter
+    then blocks every later frame until the command comes back within MAX_RATE_UP of zero — in the
+    log that cost the car 0.92 s of STEERING_LKA while openpilot believed it was steering, which the
+    car's own lane-keeping ECU reads as a message dropout.
+    """
+    self.safety.set_timer(0)
+    self.safety.set_heartbeat_engaged(False)
+    self.assertTrue(self._rx(self._acc_main_msg(True)))
+
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+    # The permission is additive: stock ACC is not set, so upstream's flag stays down
+    self.assertFalse(self.safety.get_controls_allowed())
+    self.assertTrue(self._tx(self._steer_tx_msg()))
+
+  def test_lateral_engage_heartbeat_grace(self):
+    """A missing heartbeat disengages only once it has been gone for the grace window.
+
+    The arm no longer waits for that bit, so its remaining job is to notice openpilot is gone —
+    and that reading is up to a full period of pandad's 10 Hz heartbeat late.
+    """
+    grace_us = 300000  # HEARTBEAT_GRACE_US in lateral_engage.h, 3x pandad's 10 Hz heartbeat
+    self.safety.set_timer(1_000_000)
+    self.safety.set_heartbeat_engaged(False)
+    self.assertTrue(self._rx(self._acc_main_msg(True)))
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+
+    # A heartbeat refresh extends the window rather than restarting the arm
+    self.safety.set_timer(1_000_000 + grace_us // 2)
+    self.safety.lateral_engage_update(True, True, False)
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+
+    # Silent for exactly the window: still armed
+    self.safety.set_timer(1_000_000 + grace_us // 2 + grace_us)
+    self.safety.lateral_engage_update(True, False, False)
+    self.assertTrue(self.safety.get_controls_allowed_lateral())
+
+    # One microsecond more: openpilot is gone, and the permission goes with it
+    self.safety.set_timer(1_000_000 + grace_us // 2 + grace_us + 1)
+    self.safety.lateral_engage_update(True, False, False)
+    self.assertFalse(self.safety.get_controls_allowed_lateral())
+
+    # openpilot coming back re-arms it on the heartbeat's own rising edge, the switch held on
+    self.safety.set_timer(1_000_000 + grace_us // 2 + grace_us + 1000)
     self.safety.lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
