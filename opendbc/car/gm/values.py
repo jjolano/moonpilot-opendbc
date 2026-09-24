@@ -66,6 +66,11 @@ class GMSafetyFlags(IntFlag):
   LATERAL_ENGAGE = 8  # moonpilot seam, see AGENTS.md
 
 
+class GMFlags(IntFlag):
+  # Detected flags
+  HAS_BSM = 1  # blind spot monitoring
+
+
 class Footnote(Enum):
   SETUP = CarFootnote(
     "See more setup details for <a href=\"https://github.com/commaai/openpilot/wiki/gm\" target=\"_blank\">GM</a>.",
