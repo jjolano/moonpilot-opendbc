@@ -9,6 +9,7 @@ from opendbc.car.secoc import add_mac, build_sync_mac
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.toyota import toyotacan
 from opendbc.car.toyota.values import CAR, CarControllerParams, ToyotaFlags
+from opendbc.car.moonpilot.engine_coast import EngineCoast  # moonpilot seam, see AGENTS.md
 from opendbc.can import CANPacker
 
 Ecu = structs.CarParams.Ecu
@@ -55,6 +56,7 @@ class CarController(CarControllerBase):
     self.alert_active = False
     self.standstill_req = False
     self.permit_braking = True
+    self.moonpilot_coast = EngineCoast()  # moonpilot seam, see AGENTS.md
     self.steer_rate_counter = 0
     self.distance_button = 0
 
@@ -246,6 +248,8 @@ class CarController(CarControllerBase):
           self.permit_braking = True
         elif net_acceleration_request_min > 0.3:
           self.permit_braking = False
+        if self.CP.flags & ToyotaFlags.MOONPILOT_ENGINE_COAST:  # moonpilot seam, see AGENTS.md
+          self.permit_braking = self.moonpilot_coast.permit(self.permit_braking, net_acceleration_request_min, CS.out.vEgo, CC.longActive and not stopping)
 
         pcm_accel_cmd = float(np.clip(pcm_accel_cmd, self.params.ACCEL_MIN, self.params.ACCEL_MAX))
 

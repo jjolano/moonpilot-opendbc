@@ -75,6 +75,8 @@ class ToyotaFlags(IntFlag):
   # these cars can utilize 2.0 m/s^2
   RAISED_ACCEL_LIMIT = 1024
   SECOC = 2048
+  # moonpilot seam, see AGENTS.md: never detected, set by the fork's card hook (opendbc/car/moonpilot/engine_coast.py)
+  MOONPILOT_ENGINE_COAST = 2 ** 20
 
   # deprecated flags
   # these cars are speculated to allow stop and go when the DSU is unplugged
