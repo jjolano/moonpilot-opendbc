@@ -3,14 +3,13 @@ import unittest
 
 from opendbc.car.structs import CarParams
 from opendbc.car.subaru.values import SubaruSafetyFlags
-from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
-from opendbc.safety.tests.common import CANPackerSafety
 import opendbc.safety.tests.lateral_engage_common as lateral_engage_common  # moonpilot: by module, never by name — see AGENTS.md
 
 
 class TestSubaruPreglobalSafety(common.CarSafetyTest, common.DriverTorqueSteeringSafetyTest):
-  FLAGS = 0
+  SAFETY_MODEL = CarParams.SafetyModel.subaruPreglobal
+
   DBC = "subaru_outback_2015_generated"
   TX_MSGS = [[0x161, 0], [0x164, 0]]
   RELAY_MALFUNCTION_ADDRS = {0: (0x164, 0x161)}
@@ -24,12 +23,6 @@ class TestSubaruPreglobalSafety(common.CarSafetyTest, common.DriverTorqueSteerin
 
   DRIVER_TORQUE_ALLOWANCE = 75
   DRIVER_TORQUE_FACTOR = 10
-
-  def setUp(self):
-    self.packer = CANPackerSafety(self.DBC)
-    self.safety = libsafety_py.libsafety
-    self.safety.set_safety_hooks(CarParams.SafetyModel.subaruPreglobal, self.FLAGS)
-    self.safety.init_tests()
 
   def _set_prev_torque(self, t):
     self.safety.set_desired_torque_last(t)
@@ -62,7 +55,8 @@ class TestSubaruPreglobalSafety(common.CarSafetyTest, common.DriverTorqueSteerin
 
 
 class TestSubaruPreglobalReversedDriverTorqueSafety(TestSubaruPreglobalSafety):
-  FLAGS = SubaruSafetyFlags.PREGLOBAL_REVERSED_DRIVER_TORQUE
+  SAFETY_PARAM = SubaruSafetyFlags.PREGLOBAL_REVERSED_DRIVER_TORQUE
+
   DBC = "subaru_outback_2019_generated"
 
 
@@ -71,7 +65,7 @@ class TestSubaruPreglobalReversedDriverTorqueSafety(TestSubaruPreglobalSafety):
 # engaged heartbeat — see lateral_engage_common.
 class TestSubaruPreglobalLateralEngageBase(TestSubaruPreglobalSafety):
   def _set_lateral_engage_hooks(self, enabled):
-    flags = int(self.FLAGS) | (int(SubaruSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
+    flags = int(self.SAFETY_PARAM) | (int(SubaruSafetyFlags.LATERAL_ENGAGE) if enabled else 0)
     self.safety.set_safety_hooks(CarParams.SafetyModel.subaruPreglobal, flags)
 
   def _set_lat_engage_hooks(self):
