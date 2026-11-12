@@ -57,24 +57,19 @@
 // and a driver's torque is handled the way upstream handles it — the car blends
 // it, and openpilot overrides rather than disengaging.
 
-#define lateral_engage_enabled safety.lateral_engage_enabled
-#define lateral_engage_host_armed safety.lateral_engage_host_armed
-#define lateral_engage_acc_main_prev safety.lateral_engage_acc_main_prev
-#define lateral_engage_heartbeat_prev safety.lateral_engage_heartbeat_prev
-#define lateral_engage_heartbeat_ts safety.lateral_engage_heartbeat_ts
 
 void lateral_engage_init(void) {
   safety.controls_allowed_lateral = false;
-  lateral_engage_enabled = false;
-  lateral_engage_host_armed = false;
-  lateral_engage_acc_main_prev = false;
-  lateral_engage_heartbeat_prev = false;
-  lateral_engage_heartbeat_ts = 0U;
+  safety.lateral_engage_enabled = false;
+  safety.lateral_engage_host_armed = false;
+  safety.lateral_engage_acc_main_prev = false;
+  safety.lateral_engage_heartbeat_prev = false;
+  safety.lateral_engage_heartbeat_ts = 0U;
 }
 
 void lateral_engage_set_enabled(bool enabled, LateralEngageArm arm) {
-  lateral_engage_enabled = enabled;
-  lateral_engage_host_armed = arm == LATERAL_ENGAGE_ARM_HOST;
+  safety.lateral_engage_enabled = enabled;
+  safety.lateral_engage_host_armed = arm == LATERAL_ENGAGE_ARM_HOST;
 }
 
 void lateral_engage_update(bool acc_main, bool heartbeat,
@@ -85,19 +80,19 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
   const uint32_t HEARTBEAT_GRACE_US = 300000U;
   uint32_t ts = safety_ts;
 
-  if (lateral_engage_enabled) {
-    if (lateral_engage_host_armed) {
+  if (safety.lateral_engage_enabled) {
+    if (safety.lateral_engage_host_armed) {
       // Host-armed: there is no car signal to wait for, so the freshest
       // heartbeat is the whole condition and a grant can never be older than
       // the grace window.
       if (heartbeat) {
         safety.controls_allowed_lateral = true;
-        lateral_engage_heartbeat_ts = ts;
+        safety.lateral_engage_heartbeat_ts = ts;
       } else {
         // openpilot is gone rather than one heartbeat late: the permission goes
         // with it. Not an `else if`: MISRA-C:2012 15.7 wants every if/else-if
         // chain terminated by an else.
-        if (safety_get_ts_elapsed(ts, lateral_engage_heartbeat_ts) >
+        if (safety_get_ts_elapsed(ts, safety.lateral_engage_heartbeat_ts) >
             HEARTBEAT_GRACE_US) {
           safety.controls_allowed_lateral = false;
         }
@@ -110,18 +105,18 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
         // to a period of pandad's heartbeat, and a rejected frame in that
         // window costs the rest of the engagement — see the note at the top of
         // this file.
-        if (!lateral_engage_acc_main_prev ||
-            (heartbeat && !lateral_engage_heartbeat_prev)) {
+        if (!safety.lateral_engage_acc_main_prev ||
+            (heartbeat && !safety.lateral_engage_heartbeat_prev)) {
           safety.controls_allowed_lateral = true;
-          lateral_engage_heartbeat_ts = ts;
+          safety.lateral_engage_heartbeat_ts = ts;
         }
 
         if (heartbeat) {
           // openpilot is engaged: the permission holds, and the window restarts
-          lateral_engage_heartbeat_ts = ts;
+          safety.lateral_engage_heartbeat_ts = ts;
         } else {
           // Not an `else if`, for the same MISRA-C:2012 15.7 reason as above
-          if (safety_get_ts_elapsed(ts, lateral_engage_heartbeat_ts) >
+          if (safety_get_ts_elapsed(ts, safety.lateral_engage_heartbeat_ts) >
               HEARTBEAT_GRACE_US) {
             safety.controls_allowed_lateral = false;
           }
@@ -145,8 +140,8 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
     safety.controls_allowed_lateral = false;
   }
 
-  lateral_engage_acc_main_prev = acc_main;
-  lateral_engage_heartbeat_prev = heartbeat;
+  safety.lateral_engage_acc_main_prev = acc_main;
+  safety.lateral_engage_heartbeat_prev = heartbeat;
 }
 
 void lateral_engage_exit(void) {

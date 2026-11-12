@@ -2,10 +2,9 @@
 
 #include <stdbool.h>
 
-// moonpilot: the fork's lateral-only permission, declared here so the
-// definitions in opendbc/safety/moonpilot/lateral_engage.h have a compatible
-// declaration in scope (MISRA-C:2012 rule 8.4) and so panda and the test
-// harness can reach them.
+// The fork's lateral-only rule function declarations. Its permission and
+// arming history are fields of the redundant SafetyState in declarations.h;
+// tests access the permission through the safety.c shims.
 //
 // controls_allowed keeps upstream's exact meaning — stock ACC engagement — and
 // is what every longitudinal check reads. controls_allowed_lateral is additive
@@ -23,7 +22,6 @@ typedef enum {
   LATERAL_ENGAGE_ARM_HOST,
 } LateralEngageArm;
 
-extern bool controls_allowed_lateral;
 
 void lateral_engage_init(void);
 void lateral_engage_set_enabled(bool enabled, LateralEngageArm arm);
