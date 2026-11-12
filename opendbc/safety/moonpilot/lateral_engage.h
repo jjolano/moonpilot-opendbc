@@ -57,16 +57,14 @@
 // and a driver's torque is handled the way upstream handles it — the car blends
 // it, and openpilot overrides rather than disengaging.
 
-bool controls_allowed_lateral = false;
-
-static bool lateral_engage_enabled = false;
-static bool lateral_engage_host_armed = false;
-static bool lateral_engage_acc_main_prev = false;
-static bool lateral_engage_heartbeat_prev = false;
-static uint32_t lateral_engage_heartbeat_ts = 0U;
+#define lateral_engage_enabled safety.lateral_engage_enabled
+#define lateral_engage_host_armed safety.lateral_engage_host_armed
+#define lateral_engage_acc_main_prev safety.lateral_engage_acc_main_prev
+#define lateral_engage_heartbeat_prev safety.lateral_engage_heartbeat_prev
+#define lateral_engage_heartbeat_ts safety.lateral_engage_heartbeat_ts
 
 void lateral_engage_init(void) {
-  controls_allowed_lateral = false;
+  safety.controls_allowed_lateral = false;
   lateral_engage_enabled = false;
   lateral_engage_host_armed = false;
   lateral_engage_acc_main_prev = false;
@@ -85,7 +83,7 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
   // openpilot being engaged before the permission is dropped. Block scope, not
   // file scope: MISRA-C:2012 8.9.
   const uint32_t HEARTBEAT_GRACE_US = 300000U;
-  uint32_t ts = microsecond_timer_get();
+  uint32_t ts = safety_ts;
 
   if (lateral_engage_enabled) {
     if (lateral_engage_host_armed) {
@@ -93,7 +91,7 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
       // heartbeat is the whole condition and a grant can never be older than
       // the grace window.
       if (heartbeat) {
-        controls_allowed_lateral = true;
+        safety.controls_allowed_lateral = true;
         lateral_engage_heartbeat_ts = ts;
       } else {
         // openpilot is gone rather than one heartbeat late: the permission goes
@@ -101,7 +99,7 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
         // chain terminated by an else.
         if (safety_get_ts_elapsed(ts, lateral_engage_heartbeat_ts) >
             HEARTBEAT_GRACE_US) {
-          controls_allowed_lateral = false;
+          safety.controls_allowed_lateral = false;
         }
       }
     } else {
@@ -114,7 +112,7 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
         // this file.
         if (!lateral_engage_acc_main_prev ||
             (heartbeat && !lateral_engage_heartbeat_prev)) {
-          controls_allowed_lateral = true;
+          safety.controls_allowed_lateral = true;
           lateral_engage_heartbeat_ts = ts;
         }
 
@@ -125,17 +123,17 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
           // Not an `else if`, for the same MISRA-C:2012 15.7 reason as above
           if (safety_get_ts_elapsed(ts, lateral_engage_heartbeat_ts) >
               HEARTBEAT_GRACE_US) {
-            controls_allowed_lateral = false;
+            safety.controls_allowed_lateral = false;
           }
         }
       } else {
         // The cruise main switch off ends it outright
-        controls_allowed_lateral = false;
+        safety.controls_allowed_lateral = false;
       }
     }
   } else {
     // A stock config, or a safety mode whose brand never opted in
-    controls_allowed_lateral = false;
+    safety.controls_allowed_lateral = false;
   }
 
   // A steering override always wins, whatever armed it, and it holds while it
@@ -144,7 +142,7 @@ void lateral_engage_update(bool acc_main, bool heartbeat,
   // host-armed car would otherwise take the permission back on the next
   // heartbeat with the driver still holding the wheel.
   if (steering_override) {
-    controls_allowed_lateral = false;
+    safety.controls_allowed_lateral = false;
   }
 
   lateral_engage_acc_main_prev = acc_main;
@@ -156,5 +154,5 @@ void lateral_engage_exit(void) {
   // that drop controls_allowed drop lateral permission. Under ARM_SWITCH
   // re-arming takes a main switch or ACC transition; under ARM_HOST the next
   // fresh heartbeat is enough, which is what level-arming buys.
-  controls_allowed_lateral = false;
+  safety.controls_allowed_lateral = false;
 }

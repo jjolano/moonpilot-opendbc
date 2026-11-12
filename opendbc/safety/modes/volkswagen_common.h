@@ -3,28 +3,9 @@
 extern const uint16_t FLAG_VOLKSWAGEN_LONG_CONTROL;
 const uint16_t FLAG_VOLKSWAGEN_LONG_CONTROL = 1;
 
-// moonpilot seam, see AGENTS.md: the lateral-only permission. Shared by every VW platform -- a car
-// runs one VW mode at a time -- with the arm differing per platform: MQB and MEB arm on the cruise
-// main switch their rx hooks decode (ARM_SWITCH), while PQ and MLB have none to arm on (PQ only
-// populates acc_main_on under openpilot longitudinal control, which is the one configuration this
-// feature is not for, and MLB never populates it) and arm on the host's heartbeat (ARM_HOST).
+// Shared Volkswagen lateral-only permission flag.
 extern const uint16_t FLAG_VOLKSWAGEN_LATERAL_ENGAGE;
 const uint16_t FLAG_VOLKSWAGEN_LATERAL_ENGAGE = 4;
-
-extern bool volkswagen_longitudinal;
-bool volkswagen_longitudinal = false;
-
-extern bool volkswagen_set_button_prev;
-bool volkswagen_set_button_prev = false;
-
-extern bool volkswagen_resume_button_prev;
-bool volkswagen_resume_button_prev = false;
-
-extern bool volkswagen_brake_pedal_switch;
-extern bool volkswagen_brake_pressure_detected;
-bool volkswagen_brake_pedal_switch = false;
-bool volkswagen_brake_pressure_detected = false;
-
 #define MSG_LH_EPS_03        0x09FU   // RX from EPS, for driver steering torque
 #define MSG_ESP_19           0x0B2U   // RX from ABS, for wheel speeds
 #define MSG_ESP_05           0x106U   // RX from ABS, for brake switch state
@@ -45,11 +26,7 @@ bool volkswagen_brake_pressure_detected = false;
 #define MSG_TSK_04      0x10EU   // RX from ECU, for ACC status from drivetrain coordinator
 
 static void volkswagen_common_init(void) {
-  volkswagen_longitudinal = false;
-  volkswagen_set_button_prev = false;
-  volkswagen_resume_button_prev = false;
-  volkswagen_brake_pedal_switch = false;
-  volkswagen_brake_pressure_detected = false;
+  safety_setup.volkswagen_longitudinal = false;
   return;
 }
 

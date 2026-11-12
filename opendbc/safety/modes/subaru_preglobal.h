@@ -17,15 +17,13 @@
 #define SUBARU_PG_MAIN_BUS 0U
 #define SUBARU_PG_CAM_BUS  2U
 
-static bool subaru_pg_reversed_driver_torque = false;
-
 static void subaru_preglobal_rx_hook(const CANPacket_t *msg) {
   if (msg_matches(msg, MSG_SUBARU_PG_Steering_Torque, SUBARU_PG_MAIN_BUS)) {
     int torque_driver_new;
     torque_driver_new = (msg->data[3] >> 5) + (msg->data[4] << 3);
     torque_driver_new = to_signed(torque_driver_new, 11);
-    torque_driver_new = subaru_pg_reversed_driver_torque ? -torque_driver_new : torque_driver_new;
-    update_sample(&torque_driver, torque_driver_new);
+    torque_driver_new = safety_setup.subaru_pg_reversed_driver_torque ? -torque_driver_new : torque_driver_new;
+    update_sample(&safety.torque_driver, torque_driver_new);
   }
 
   // enter controls on rising edge of ACC, exit controls on ACC off
@@ -36,15 +34,15 @@ static void subaru_preglobal_rx_hook(const CANPacket_t *msg) {
 
   // update vehicle moving with any non-zero wheel speed
   if (msg_matches(msg, MSG_SUBARU_PG_Wheel_Speeds, SUBARU_PG_MAIN_BUS)) {
-    vehicle_moving = ((GET_BYTES_LE(msg, 0, 4) >> 12) | GET_BYTES_LE(msg, 4, 4)) != 0U;
+    safety.vehicle_moving = ((GET_BYTES_LE(msg, 0, 4) >> 12) | GET_BYTES_LE(msg, 4, 4)) != 0U;
   }
 
   if (msg_matches(msg, MSG_SUBARU_PG_Brake_Pedal, SUBARU_PG_MAIN_BUS)) {
-    brake_pressed = ((GET_BYTES_LE(msg, 0, 4) >> 16) & 0xFFU) > 0U;
+    safety.brake_pressed = ((GET_BYTES_LE(msg, 0, 4) >> 16) & 0xFFU) > 0U;
   }
 
   if (msg_matches(msg, MSG_SUBARU_PG_Throttle, SUBARU_PG_MAIN_BUS)) {
-    gas_pressed = msg->data[0] != 0U;
+    safety.gas_pressed = msg->data[0] != 0U;
   }
 }
 
@@ -93,12 +91,8 @@ static safety_config subaru_preglobal_init(uint16_t param) {
 
   const uint16_t SUBARU_PG_PARAM_REVERSED_DRIVER_TORQUE = 4;
 
-  subaru_pg_reversed_driver_torque = GET_FLAG(param, SUBARU_PG_PARAM_REVERSED_DRIVER_TORQUE);
-
-  // moonpilot seam, see AGENTS.md: the lateral-only permission, enabled by this safety param bit --
-  // the same bit the global subaru mode reads, since the Python mirror is one flag per brand.
-  // Host-armed: this mode never populates `acc_main_on` (CruiseControl carries cruise engaged, not
-  // the main switch), so openpilot's own engaged heartbeat is the arm.
+  safety_setup.subaru_pg_reversed_driver_torque = GET_FLAG(param, SUBARU_PG_PARAM_REVERSED_DRIVER_TORQUE);
+  // Same host-armed lateral enable bit as the global Subaru mode.
   const uint16_t SUBARU_PARAM_LATERAL_ENGAGE = 8;
   lateral_engage_set_enabled(GET_FLAG(param, SUBARU_PARAM_LATERAL_ENGAGE), LATERAL_ENGAGE_ARM_HOST);
   return BUILD_SAFETY_CFG(subaru_preglobal_rx_checks, SUBARU_PG_TX_MSGS);

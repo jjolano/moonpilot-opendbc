@@ -57,7 +57,7 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
       self.assertTrue(self._rx(self._acc_main_msg(on)))
     else:
       self.safety.set_heartbeat_engaged(on)
-      self.safety.lateral_engage_update(False, on, False)
+      self.safety.test_lateral_engage_update(False, on, False)
 
   def _arm_lateral(self):
     """Turn the arm on with openpilot engaged, i.e. the driver's own path: the cruise main switch
@@ -76,7 +76,7 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     else:
       self.safety.set_heartbeat_engaged(False)
       self.safety.set_timer(LATERAL_ENGAGE_GRACE_US + 1)
-      self.safety.lateral_engage_update(False, False, False)
+      self.safety.test_lateral_engage_update(False, False, False)
 
   def tearDown(self):
     # Leave the module-level globals as a stock config would, so the inherited upstream tests
@@ -101,21 +101,21 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     self._arm_lateral()
 
     # Persistence: a cycle with no edge keeps the permission
-    self.safety.lateral_engage_update(True, True, False)
+    self.safety.test_lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
     # A heartbeat that stops is not an edge: it clears only once the grace window has passed
-    self.safety.lateral_engage_update(True, False, False)
+    self.safety.test_lateral_engage_update(True, False, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
     # Re-arms on the heartbeat's own rising edge, with the main switch already on
-    self.safety.lateral_engage_update(True, True, False)
+    self.safety.test_lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
     # Main switch off ends it, and its own rising edge arms it again
-    self.safety.lateral_engage_update(False, True, False)
+    self.safety.test_lateral_engage_update(False, True, False)
     self.assertFalse(self.safety.get_controls_allowed_lateral())
-    self.safety.lateral_engage_update(True, True, False)
+    self.safety.test_lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
   def test_lateral_engage_arms_on_the_heartbeat(self):
@@ -136,15 +136,15 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     self.assertFalse(self._tx(self._accel_tx_msg()))
 
     # The lag/validity exit clears it, and one more fresh heartbeat brings it back
-    self.safety.lateral_engage_exit()
+    self.safety.test_lateral_engage_exit()
     self.assertFalse(self.safety.get_controls_allowed_lateral())
-    self.safety.lateral_engage_update(False, True, False)
+    self.safety.test_lateral_engage_update(False, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
     # A heartbeat that went stale is the one thing that does drop it
     self.safety.set_heartbeat_engaged(False)
     self.safety.set_timer(LATERAL_ENGAGE_GRACE_US + 1000)
-    self.safety.lateral_engage_update(False, False, False)
+    self.safety.test_lateral_engage_update(False, False, False)
     self.assertFalse(self.safety.get_controls_allowed_lateral())
     self.assertFalse(self._tx(self._steer_tx_msg()))
 
@@ -186,22 +186,22 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
 
     # A heartbeat refresh extends the window rather than restarting the arm
     self.safety.set_timer(1_000_000 + grace_us // 2)
-    self.safety.lateral_engage_update(True, True, False)
+    self.safety.test_lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
     # Silent for exactly the window: still armed
     self.safety.set_timer(1_000_000 + grace_us // 2 + grace_us)
-    self.safety.lateral_engage_update(True, False, False)
+    self.safety.test_lateral_engage_update(True, False, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
     # One microsecond more: openpilot is gone, and the permission goes with it
     self.safety.set_timer(1_000_000 + grace_us // 2 + grace_us + 1)
-    self.safety.lateral_engage_update(True, False, False)
+    self.safety.test_lateral_engage_update(True, False, False)
     self.assertFalse(self.safety.get_controls_allowed_lateral())
 
     # openpilot coming back re-arms it on the heartbeat's own rising edge, the switch held on
     self.safety.set_timer(1_000_000 + grace_us // 2 + grace_us + 1000)
-    self.safety.lateral_engage_update(True, True, False)
+    self.safety.test_lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
   def test_lateral_engage_disarms_on_steering_disengage(self):
@@ -215,20 +215,20 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
     self._arm_lateral()
     acc_main = self.LATERAL_ENGAGE_ARM == "switch"
 
-    self.safety.lateral_engage_update(acc_main, True, True)
+    self.safety.test_lateral_engage_update(acc_main, True, True)
     self.assertFalse(self.safety.get_controls_allowed_lateral())
 
     # Held: the driver is still on the wheel, so there is still no permission
-    self.safety.lateral_engage_update(acc_main, True, True)
+    self.safety.test_lateral_engage_update(acc_main, True, True)
     self.assertFalse(self.safety.get_controls_allowed_lateral())
 
     # Released: the host-armed arm comes back on the next heartbeat by itself, while the
     # switch-armed one waits for its own switch edge -- the difference the two modes exist for
-    self.safety.lateral_engage_update(acc_main, True, False)
+    self.safety.test_lateral_engage_update(acc_main, True, False)
     if self.LATERAL_ENGAGE_ARM == "switch":
       self.assertFalse(self.safety.get_controls_allowed_lateral())
-      self.safety.lateral_engage_update(False, True, False)
-      self.safety.lateral_engage_update(True, True, False)
+      self.safety.test_lateral_engage_update(False, True, False)
+      self.safety.test_lateral_engage_update(True, True, False)
     self.assertTrue(self.safety.get_controls_allowed_lateral())
 
   def test_lateral_engage_exit(self):
@@ -243,7 +243,7 @@ class LateralEngageSafetyTest(common.SafetyTestBase, abc.ABC):
 
     # And directly, since the exit is what safety_tick calls
     self.safety.set_controls_allowed_lateral(True)
-    self.safety.lateral_engage_exit()
+    self.safety.test_lateral_engage_exit()
     self.assertFalse(self.safety.get_controls_allowed_lateral())
 
   def test_lateral_engage_init_clears(self):
